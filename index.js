@@ -5,7 +5,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
-const axios = require("axios"); // ✅ API ke liye zaroori
+const axios = require("axios"); 
 const path = require("path");
 const fs = require("fs");
 
@@ -17,9 +17,16 @@ if (!fs.existsSync("./uploads")) {
     fs.mkdirSync("./uploads");
 }
 
-// ------------------- MIDDLEWARE -------------------
+// ------------------- MIDDLEWARE (CORS FIXED HERE) -------------------
 app.use(express.json());
-app.use(cors());
+
+// ✅ YE HAI WO FIX JO FEED ERROR HATAYEGA
+app.use(cors({
+    origin: "*", // Sabko allow karega (Frontend connect ho payega)
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
+
 app.use("/uploads", express.static("uploads"));
 
 // ------------------- DATABASE CONNECT -------------------
@@ -167,7 +174,6 @@ app.get("/api/chat/conversations", verifyToken, async (req, res) => {
 // Feed
 app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (req, res) => {
     try {
-        // NOTE: Render par local uploads delete ho jate hain restart par.
         const img = req.file ? `https://zobbly.onrender.com/uploads/${req.file.filename}` : "";
         const newPost = new Post({ userId: req.user.id, content: req.body.content, image: img }); 
         await newPost.save();
@@ -278,7 +284,6 @@ app.post("/api/send-otp", async (req, res) => {
       user.otpExpires = Date.now() + 10 * 60 * 1000; 
       await user.save(); 
 
-      // ✅ Brevo API Use kar rahe hain (SMTP Blocked issue fixed)
       const emailData = {
         sender: { name: "Zobbly App", email: process.env.SENDER_EMAIL },
         to: [{ email: email }],
@@ -293,11 +298,10 @@ app.post("/api/send-otp", async (req, res) => {
                       </html>`
       };
 
-      // Call Brevo API
       await axios.post("https://api.brevo.com/v3/smtp/email", emailData, {
         headers: {
           "accept": "application/json",
-          "api-key": process.env.BREVO_API_KEY, // ✅ Render Env Variable se Key lega
+          "api-key": process.env.BREVO_API_KEY, 
           "content-type": "application/json"
         }
       });
