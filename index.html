@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zobbly - The Zebra Network</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- GLOBAL & ANIMATED BACKGROUND --- */
+        body { 
+            font-family: 'Inter', sans-serif; margin: 0; padding: 0; 
+            background: linear-gradient(-45deg, #ff9a9e, #fad0c4, #a18cd1, #fbc2eb, #84fab0, #8fd3f4);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            min-height: 100vh; color: #1a1a1a;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .hidden-screen { display: none !important; }
+
+        /* GLASS UI (App Section) */
+        .glass-nav { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05); }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); }
+        
+        .nav-item { transition: all 0.3s ease; position: relative; }
+        .nav-active { color: #a18cd1 !important; transform: translateY(-2px); }
+        .nav-active::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; background: #a18cd1; border-radius: 50%; }
+
+        /* BUTTONS */
+        .btn-zobbly { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3); transition: all 0.3s ease; }
+        .btn-zobbly:hover { transform: translateY(-2px); }
+        .btn-follow { font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-left: auto; }
+        .btn-not-following { background: black; color: white; border: 1px solid transparent; }
+        .btn-following { background: transparent; color: black; border: 1px solid #ccc; }
+
+        @keyframes popOutEffect { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+        .animate-pop-view { animation: popOutEffect 0.4s ease-out forwards; }
+
+        /* --- AUTH SCREEN STYLES (Loging UI) --- */
+        #auth-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: inherit; z-index: 100; }
+        .auth-container { position: relative; width: 100%; max-width: 360px; padding: 20px; display: flex; justify-content: center; align-items: center; margin-top: 30px; }
+        .doll-main { position: absolute; width: 180px; top: -120px; z-index: 20; animation: breathe 3s ease-in-out infinite; }
+        @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        .char-yellow { position: absolute; width: 85px; top: -45px; right: -10px; z-index: 5; animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0); } }
+        .char-orange { position: absolute; width: 160px; bottom: -55px; right: -50px; z-index: 10; transform: rotate(-10deg); }
+        
+        .login-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); width: 100%; padding: 90px 25px 30px; border-radius: 35px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1); position: relative; z-index: 5; border: 1px solid rgba(255,255,255,0.5); }
+        .icon-lock-img { position: absolute; width: 45px; top: 35px; right: 25px; }
+        .auth-h2 { color: #333; font-size: 28px; margin-bottom: 20px; font-weight: 800; text-align: center; }
+        
+        .input-group { margin-bottom: 15px; }
+        .input-wrapper { position: relative; }
+        .input-wrapper i { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #90a0b5; font-size: 16px; }
+        .input-wrapper input { width: 100%; padding: 15px 15px 15px 50px; background: rgba(255,255,255,0.6); border: 2px solid transparent; border-radius: 50px; font-size: 15px; color: #333; outline: none; transition: 0.3s; }
+        .input-wrapper input:focus { background: #fff; border-color: #a18cd1; box-shadow: 0 0 10px rgba(161, 140, 209, 0.3); }
+        
+        .btn-auth { width: 100%; padding: 12px; border: none; border-radius: 50px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px; transition: 0.3s; color: white; display: block; }
+        .btn-login-style { background: linear-gradient(to right, #4facfe, #00f2fe); box-shadow: 0 10px 20px rgba(0, 198, 251, 0.3); }
+        .btn-signup-style { background: linear-gradient(to right, #43e97b, #38f9d7); box-shadow: 0 10px 20px rgba(56, 249, 215, 0.3); }
+        .btn-otp-style { background: linear-gradient(to right, #fa709a, #fee140); box-shadow: 0 10px 20px rgba(250, 112, 154, 0.3); }
+        .btn-auth:active { transform: scale(0.98); }
+        .link-btn { margin-top: 12px; text-align: center; font-weight: 600; color: #333; cursor: pointer; font-size: 14px; }
+        
+        #side-panel { transition: transform 0.4s; transform: translateX(100%); }
+        #side-panel.open { transform: translateX(0); }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+    </style>
+</head>
+<body class="text-gray-900 relative overflow-x-hidden">
+
+    <div id="auth-screen">
+        <div class="auth-container">
+            <img src="https://i.ibb.co/z1jXcZX/Screenshot-2025-11-22-at-2-45-03-PM-removebg-preview.png" class="doll-main" alt="Doll">
+            <img src="https://i.ibb.co/jvZs6MnK/Screenshot-2025-11-22-at-2-48-15-PM-removebg-preview.png" class="char-yellow" alt="Yellow">
+            <img src="https://i.ibb.co/bRQqTjqn/IMAGE-2025-11-25-21-49-34-removebg-preview.png" class="char-orange" alt="Orange">
+        
+            <div class="login-card">
+                <img src="https://i.ibb.co/ycwwnZD1/Screenshot-2025-11-22-at-2-48-21-PM-removebg-preview.png" class="icon-lock-img" alt="Lock">
+        
+                <div id="form-login" class="auth-form">
+                    <h2 class="auth-h2">Zobbly</h2>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-envelope"></i><input type="email" id="loginEmail" placeholder="Email Address" /></div></div>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-lock"></i><input type="password" id="loginPass" placeholder="Password" /></div></div>
+                    <button class="btn-auth btn-login-style" onclick="APIService.auth.login()">Enter World</button>
+                    <button class="btn-auth btn-signup-style" onclick="switchAuth('form-register')">Join Network</button>
+                    <div class="link-btn" onclick="switchAuth('form-forgot')">Forgot Password?</div>
+                </div>
+        
+                <div id="form-register" class="auth-form hidden-screen">
+                    <h2 class="auth-h2">Join</h2>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-user"></i><input type="text" id="regName" placeholder="Full Name" /></div></div>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-envelope"></i><input type="email" id="regEmail" placeholder="Email Address" /></div></div>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-lock"></i><input type="password" id="regPass" placeholder="Password" /></div></div>
+                    <button class="btn-auth btn-signup-style" onclick="APIService.auth.register()">Sign Up & Verify</button>
+                    <div class="link-btn" onclick="switchAuth('form-login')">Back to Login</div>
+                </div>
+
+                <div id="form-forgot" class="auth-form hidden-screen">
+                    <h2 class="auth-h2">Reset</h2>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-envelope"></i><input type="email" id="forgotEmail" placeholder="Enter Email" /></div></div>
+                    <button class="btn-auth btn-otp-style" onclick="APIService.auth.sendOtp('forgot')">Send OTP</button>
+                    <div class="link-btn" onclick="switchAuth('form-login')">Back</div>
+                </div>
+
+                <div id="form-otp" class="auth-form hidden-screen">
+                    <h2 class="auth-h2">Verify</h2>
+                    <p class="text-center text-xs mb-2">Code sent to: <span id="displayEmail" class="font-bold"></span></p>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-key"></i><input type="text" id="otpCode" placeholder="Enter OTP" /></div></div>
+                    <button class="btn-auth btn-login-style" onclick="APIService.auth.verifyOtp()">Verify</button>
+                    <div class="link-btn" onclick="switchAuth('form-login')">Cancel</div>
+                </div>
+
+                <div id="form-reset" class="auth-form hidden-screen">
+                    <h2 class="auth-h2">New Pass</h2>
+                    <div class="input-group"><div class="input-wrapper"><i class="fas fa-lock"></i><input type="password" id="newPassInput" placeholder="New Password" /></div></div>
+                    <button class="btn-auth btn-login-style" onclick="APIService.auth.resetPassword()">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden-screen">
+        <nav class="glass-nav fixed w-full z-40 top-0 px-4 md:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="text-3xl font-black tracking-tighter cursor-pointer text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600" onclick="renderView('feed')">Zobbly</div>
+            </div>
+            <ul class="flex items-center gap-8 text-gray-600 text-xs font-bold uppercase tracking-wider">
+                <li class="cursor-pointer hover:text-black nav-item nav-active" id="nav-feed" onclick="renderView('feed')"><div class="text-xl mb-1"><i class="fa-solid fa-house-chimney"></i></div></li>
+                <li class="cursor-pointer hover:text-black nav-item" id="nav-jobs" onclick="renderView('jobs')"><div class="text-xl mb-1"><i class="fa-solid fa-briefcase"></i></div></li>
+                <li class="cursor-pointer hover:text-black nav-item relative" id="nav-notifs" onclick="renderView('notifications')">
+                    <div class="text-xl mb-1"><i class="fa-solid fa-bell"></i></div>
+                    <span id="notif-badge" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white hidden animate-ping"></span>
+                    <span id="notif-badge-static" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white hidden"></span>
+                </li>
+                <li class="cursor-pointer hover:text-black nav-item" id="nav-chat" onclick="renderView('chat')"><div class="text-xl mb-1"><i class="fa-solid fa-comment-dots"></i></div></li>
+                <li class="cursor-pointer hover:text-black nav-item" id="nav-profile" onclick="renderView('profile')"><div class="text-xl mb-1"><i class="fa-solid fa-circle-user"></i></div></li>
+                <li class="cursor-pointer hover:text-black nav-item" onclick="toggleSidePanel()"><div class="text-xl mb-1"><i class="fa-solid fa-bars"></i></div></li>
+            </ul>
+        </nav>
+
+        <div class="max-w-7xl mx-auto pt-24 px-4 grid grid-cols-1 md:grid-cols-12 gap-8">
+            <div class="hidden md:block md:col-span-3 sticky top-24 h-fit">
+                <div class="glass-card p-6 text-center animate-pop-view" style="--origin-x: center; --origin-y: center;">
+                    <img id="sidebar-img" src="https://placehold.co/100" class="w-20 h-20 rounded-full mx-auto mb-3 object-cover border-4 border-white shadow-lg cursor-pointer" onclick="renderView('profile')">
+                    <h2 class="font-bold text-lg cursor-pointer hover:text-purple-600 transition" id="sidebar-name" onclick="renderView('profile')">User</h2>
+                    <p class="text-xs text-gray-500 mb-4" id="sidebar-email">...</p>
+                    <div class="flex justify-around text-xs font-bold text-gray-600 border-t pt-4">
+                        <div class="cursor-pointer hover:text-black"><span class="block text-lg text-black" id="stat-posts">0</span>Post</div>
+                        <div class="cursor-pointer hover:text-black"><span class="block text-lg text-black" id="stat-followers">0</span>Followers</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-span-1 md:col-span-6" id="main-content"></div>
+            <div class="hidden md:block md:col-span-3 sticky top-24 h-fit">
+                <div class="glass-card p-6 animate-pop-view" style="--origin-x: center; --origin-y: center;">
+                    <h3 class="font-bold text-sm mb-3 uppercase text-gray-400 tracking-widest">Trending</h3>
+                    <div class="space-y-4 text-sm text-gray-500" id="suggestions-box">
+                        <p class="text-center italic">Connect with people...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="side-panel" class="fixed top-0 right-0 h-full w-72 glass-card z-50 p-6 rounded-none border-l border-white/50 bg-white/90 backdrop-blur-xl">
+            <div class="flex justify-between items-center mb-10">
+                <h2 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">Settings</h2>
+                <button onclick="toggleSidePanel()" class="text-2xl text-gray-500 hover:rotate-90 transition-transform"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4">
+                <button onclick="openEditProfile()" class="w-full text-left p-4 hover:bg-white/50 rounded-xl flex items-center gap-4 transition"><i class="fa-solid fa-pen-to-square text-purple-500"></i> Edit Profile</button>
+                <button onclick="backupData()" class="w-full text-left p-4 hover:bg-white/50 rounded-xl flex items-center gap-4 transition"><i class="fa-solid fa-cloud-arrow-down text-blue-500"></i> Backup Data</button>
+                <div class="h-px bg-gray-300 my-4"></div>
+                <button onclick="deleteAccount()" class="w-full text-left p-4 text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-4 transition"><i class="fa-solid fa-trash"></i> Delete Account</button>
+                <button onclick="APIService.auth.logout()" class="w-full text-left p-4 text-gray-600 hover:bg-gray-100 rounded-xl flex items-center gap-4 transition"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="postModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="glass-card w-11/12 md:w-1/2 p-6 relative shadow-2xl animate-pop-view" style="background:white">
+            <button onclick="document.getElementById('postModal').classList.add('hidden')" class="absolute top-4 right-4 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-xl font-bold mb-4">Create Post</h2>
+            <textarea id="postContent" class="w-full bg-gray-50 p-4 rounded-xl mb-4 outline-none focus:ring-2 ring-purple-200" rows="4" placeholder="What's happening?"></textarea>
+            <div class="flex justify-between items-center">
+                <input type="file" id="postImage" class="text-sm text-gray-500">
+                <button onclick="submitPost()" class="btn-zobbly px-6 py-2 rounded-full font-bold">Post</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editProfileModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="glass-card w-11/12 md:w-1/2 p-6 relative animate-pop-view" style="background:white">
+            <button onclick="document.getElementById('editProfileModal').classList.add('hidden')" class="absolute top-4 right-4 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-xl font-bold mb-4">Edit Profile</h2>
+            <input id="editName" placeholder="Full Name" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none">
+            <input id="editHeadline" placeholder="Headline / Bio" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none">
+            <button onclick="saveProfile()" class="btn-zobbly w-full py-2 rounded-xl">Save Changes</button>
+        </div>
+    </div>
+
+    <div id="genericModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="glass-card w-11/12 md:w-1/2 p-6 relative shadow-2xl animate-pop-view" style="background: white;">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-black text-white px-6 py-3 rounded-full shadow-2xl transform translate-y-24 transition duration-300 z-50 border border-gray-700 flex items-center gap-3">
+        <i class="fa-solid fa-bell text-yellow-400"></i><span id="toast-msg">Notification</span>
+    </div>
+
+    <script>
+        const API_BASE = "https://zobbly.onrender.com/api";
+        //const API_BASE = "http://localhost:5000/api";
+        let activeChatUser = null;
+        let myFollowers = []; 
+        let myFollowing = [];
+        let authContext = ""; // 'register' or 'forgot'
+
+        const getHeaders = (isFormData = false) => {
+            const token = localStorage.getItem("token");
+            const headers = { "x-auth-token": token };
+            if (!isFormData) headers["Content-Type"] = "application/json";
+            return headers;
+        };
+
+        // ================= FIXED AUTH SERVICES =================
+        const APIService = {
+            auth: {
+                login: async () => {
+                    const email = document.getElementById('loginEmail').value;
+                    const password = document.getElementById('loginPass').value;
+                    if(!email || !password) return showToast("Enter credentials");
+                    try {
+                        const res = await fetch(`${API_BASE}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+                        const data = await res.json();
+                        if(res.ok) {
+                            localStorage.setItem("token", data.token);
+                            localStorage.setItem("userId", data.user._id);
+                            localStorage.setItem("userName", data.user.name);
+                            localStorage.setItem("userEmail", data.user.email);
+                            if(data.user.photo) localStorage.setItem("userPhoto", data.user.photo);
+                            checkLoginStatus();
+                        } else alert(data.error);
+                    } catch(e) { alert("Server connection failed. Is server.js running?"); }
+                },
+                register: async () => {
+                    const name = document.getElementById('regName').value;
+                    const email = document.getElementById('regEmail').value;
+                    const password = document.getElementById('regPass').value;
+                    if(!name || !email || !password) return showToast("Fill all fields");
+                    try {
+                        const res = await fetch(`${API_BASE}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, password }) });
+                        if(res.ok) { 
+                            authContext = 'register';
+                            APIService.auth.sendOtp('register', email); // Use internal call to handle flow
+                        } else alert("Registration Failed");
+                    } catch(e) { showToast("Server Error"); }
+                },
+                sendOtp: async (context, emailParam) => {
+                    const email = emailParam || document.getElementById('forgotEmail').value;
+                    const type = context || 'forgot';
+                    authContext = type;
+                    try {
+                        const res = await fetch(`${API_BASE}/send-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, type }) });
+                        if(res.ok) {
+                            localStorage.setItem("tempEmail", email);
+                            document.getElementById('displayEmail').innerText = email;
+                            switchAuth('form-otp');
+                            showToast("OTP Sent!");
+                        } else alert("Error sending OTP");
+                    } catch(e) { showToast("Server Error"); }
+                },
+                verifyOtp: async () => {
+                    const otp = document.getElementById('otpCode').value;
+                    const email = localStorage.getItem("tempEmail");
+                    try {
+                        const res = await fetch(`${API_BASE}/verify-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, otp }) });
+                        if(res.ok) { 
+                            showToast("Verified!"); 
+                            if(authContext === 'forgot') {
+                                switchAuth('form-reset');
+                            } else {
+                                switchAuth('form-login');
+                                alert("Account Verified! Please Login.");
+                            }
+                        } else showToast("Invalid OTP");
+                    } catch(e) { showToast("Error"); }
+                },
+                resetPassword: async () => {
+                    const newPassword = document.getElementById('newPassInput').value;
+                    const email = localStorage.getItem("tempEmail");
+                    try {
+                        const res = await fetch(`${API_BASE}/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, newPassword }) });
+                        if(res.ok) { 
+                            showToast("Password Updated!"); 
+                            switchAuth('form-login'); 
+                        }
+                    } catch(e) { showToast("Error"); }
+                },
+                logout: () => { localStorage.clear(); location.reload(); }
+            },
+            // ... (Rest of APIs kept exactly same)
+            user: {
+                getProfile: async (id) => (await fetch(`${API_BASE}/user/profile/${id}`)).json(),
+                follow: async (id) => (await fetch(`${API_BASE}/user/follow/${id}`, { method: "PUT", headers: getHeaders() })).json(),
+                update: async (name, headline) => { await fetch(`${API_BASE}/user/update`, { method: "PUT", headers: getHeaders(), body: JSON.stringify({name, headline}) }); },
+                delete: async () => { await fetch(`${API_BASE}/user/delete`, { method: "DELETE", headers: getHeaders() }); },
+                uploadPhoto: async (file) => { const fd = new FormData(); fd.append("photo", file); const res = await fetch(`${API_BASE}/user/upload-photo`, { method: "POST", headers: { "x-auth-token": localStorage.getItem("token") }, body: fd }); return await res.json(); },
+                backup: async () => { const res = await fetch(`${API_BASE}/user/backup`, { headers: getHeaders() }); const data = await res.json(); const blob = new Blob([JSON.stringify(data)], {type:"application/json"}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="backup.json"; a.click(); },
+                block: async (id) => { const res = await fetch(`${API_BASE}/user/block/${id}`, { method: "PUT", headers: getHeaders() }); return await res.json(); },
+                addExperience: async (expData) => { await fetch(`${API_BASE}/user/add-experience`, { method: "POST", headers: getHeaders(), body: JSON.stringify({ userId: localStorage.getItem("userId"), experienceData: expData }) }); },
+                editExperience: async (id, expData) => { await fetch(`${API_BASE}/user/experience/${id}`, { method: "PUT", headers: getHeaders(), body: JSON.stringify(expData) }); },
+                deleteExperience: async (id) => { await fetch(`${API_BASE}/user/experience/${id}`, { method: "DELETE", headers: getHeaders() }); },
+            },
+            feed: {
+                create: async(fd) => fetch(`${API_BASE}/posts/create`, {method:"POST", headers:getHeaders(true), body:fd}),
+                getAll: async() => (await fetch(`${API_BASE}/posts`)).json(),
+                getMyPosts: async() => (await fetch(`${API_BASE}/my-posts`, {headers:getHeaders()})).json(),
+                like: async(id) => fetch(`${API_BASE}/posts/like/${id}`, {method:"PUT", headers:getHeaders()}),
+                comment: async(id, text) => fetch(`${API_BASE}/posts/comment/${id}`, {method:"POST", headers:getHeaders(), body:JSON.stringify({text})}),
+                delete: async(id) => fetch(`${API_BASE}/posts/${id}`, {method:"DELETE", headers:getHeaders()})
+            },
+            chat: {
+                search: async (q) => (await fetch(`${API_BASE}/search?q=${q}`, { headers: getHeaders() })).json(),
+                send: async (rid, txt) => fetch(`${API_BASE}/messages`, { method:"POST", headers:getHeaders(), body:JSON.stringify({receiverId:rid, content:txt}) }),
+                upload: async (fd) => fetch(`${API_BASE}/messages/upload`, { method: "POST", headers: getHeaders(true), body: fd }),
+                getHistory: async(id) => (await fetch(`${API_BASE}/messages/${id}`, { headers: getHeaders() })).json(),
+                deleteMsg: async (id) => { await fetch(`${API_BASE}/messages/${id}`, { method: "DELETE", headers: getHeaders() }); },
+                clearChat: async (id) => { await fetch(`${API_BASE}/messages/clear/${id}`, { method: "DELETE", headers: getHeaders() }); },
+                getConversations: async() => (await fetch(`${API_BASE}/chat/conversations`, { headers: getHeaders() })).json()
+            },
+            notifications: {
+                getAll: async () => (await fetch(`${API_BASE}/notifications`, { headers: getHeaders() })).json()
+            },
+            jobs: {
+                search: async (endpoint) => (await fetch(`${API_BASE}${endpoint}`)).json()
+            }
+        };
+
+        // --- UI LOGIC (UNTOUCHED MOSTLY) ---
+        async function checkLoginStatus() {
+            if(localStorage.getItem("token")) {
+                document.getElementById('auth-screen').classList.add('hidden-screen');
+                document.getElementById('app-screen').classList.remove('hidden-screen');
+                document.getElementById('sidebar-name').innerText = localStorage.getItem("userName");
+                document.getElementById('sidebar-email').innerText = localStorage.getItem("userEmail");
+                if(localStorage.getItem("userPhoto") !== "undefined") document.getElementById('sidebar-img').src = localStorage.getItem("userPhoto");
+                
+                await updateMyStats();
+                renderView('feed');
+                setInterval(checkNotifs, 10000);
+            }
+        }
+
+        async function updateMyStats() {
+            try {
+                const data = await APIService.user.getProfile(localStorage.getItem("userId"));
+                myFollowing = data.user.following || [];
+                document.getElementById('stat-following').innerText = myFollowing.length;
+                document.getElementById('stat-followers').innerText = (data.user.followers || []).length;
+            } catch(e){}
+        }
+
+        async function checkNotifs() {
+            try {
+                const notifs = await APIService.notifications.getAll();
+                const unread = notifs.filter(n => !n.isRead).length;
+                if(unread > 0) {
+                    document.getElementById('notif-badge').classList.remove('hidden');
+                    document.getElementById('notif-badge-static').classList.remove('hidden');
+                } else {
+                    document.getElementById('notif-badge').classList.add('hidden');
+                    document.getElementById('notif-badge-static').classList.add('hidden');
+                }
+            } catch(e){}
+        }
+
+        function switchAuth(id) { document.querySelectorAll('.auth-form').forEach(e=>e.classList.add('hidden-screen')); document.getElementById(id).classList.remove('hidden-screen'); }
+        function toggleSidePanel() { document.getElementById('side-panel').classList.toggle('open'); }
+
+        function renderView(view) {
+            const c = document.getElementById('main-content');
+            c.innerHTML = '<div class="text-center mt-20"><i class="fa-solid fa-spinner fa-spin text-4xl text-white"></i></div>';
+            c.className = "col-span-1 md:col-span-6 animate-pop-view";
+            
+            // Handle Navigation Active State
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('nav-active', 'text-purple-600'));
+            let activeBtnId = `nav-${view}`;
+            if(document.getElementById(activeBtnId)) document.getElementById(activeBtnId).classList.add('nav-active', 'text-purple-600');
+            
+            if(window.chatInterval) clearInterval(window.chatInterval);
+
+            if(view === 'feed') renderFeed(c); 
+            else if(view === 'jobs') renderJobs(c); 
+            else if(view === 'chat') renderChat(c); 
+            else if(view === 'profile') viewUserProfile(localStorage.getItem("userId"));
+            else if(view === 'notifications') renderNotifications(c);
+        }
+
+        // --- 1. FEED ---
+        async function renderFeed(c) { 
+            try {
+                const posts = await APIService.feed.getAll(); 
+                const myId = localStorage.getItem("userId");
+                c.innerHTML = `
+                    <div class="glass-card p-4 mb-6 flex gap-3 cursor-pointer hover:bg-white/90 transition" onclick="document.getElementById('postModal').classList.remove('hidden')">
+                        <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-lg"><i class="fa-solid fa-pen-nib"></i></div>
+                        <div class="w-full bg-white/50 rounded-full px-6 py-3 text-sm text-gray-500 flex items-center shadow-inner">Start a buzz...</div>
+                    </div>` + 
+                    posts.map(p => { 
+                        const liked = p.likes.includes(myId);
+                        const isMe = p.userId._id === myId;
+                        const isFollowing = myFollowing.includes(p.userId._id);
+                        return `<div class="glass-card mb-6 p-5 relative">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex items-center gap-3">
+                                    <img src="${p.userId.photo||'https://placehold.co/50'}" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm cursor-pointer" onclick="viewUserProfile('${p.userId._id}')">
+                                    <div>
+                                        <h3 class="font-bold text-gray-800 cursor-pointer hover:underline" onclick="viewUserProfile('${p.userId._id}')">${p.userId.name}</h3>
+                                        <p class="text-xs text-gray-500">${p.userId.headline||'Member'}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    ${!isMe ? `<button onclick="toggleFollow('${p.userId._id}', this)" class="btn-follow ${isFollowing ? 'btn-following' : 'btn-not-following'}">${isFollowing ? 'Following' : 'Follow'}</button>` : ''}
+                                    <div class="relative">
+                                        <button onclick="document.getElementById('post-menu-${p._id}').classList.toggle('hidden')" class="text-gray-500 hover:text-black p-2"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                        <div id="post-menu-${p._id}" class="hidden dropdown-menu absolute right-0 top-8 bg-white shadow-xl rounded-lg w-32 z-10 overflow-hidden border">
+                                            ${isMe ? `<button onclick="deletePost('${p._id}')" class="w-full text-left p-2 text-sm text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash mr-2"></i>Delete</button>` 
+                                                   : `<button onclick="alert('Reported!')" class="w-full text-left p-2 text-sm hover:bg-gray-100"><i class="fa-solid fa-flag mr-2"></i>Report</button>
+                                                      <button onclick="blockUser('${p.userId._id}')" class="w-full text-left p-2 text-sm text-red-600 hover:bg-red-50"><i class="fa-solid fa-ban mr-2"></i>Block</button>`}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-gray-700 mb-4">${p.content}</p>
+                            ${p.image?`<img src="${p.image}" class="w-full rounded-2xl mb-4 object-cover max-h-96 shadow-md">`:''}
+                            <div class="flex items-center gap-6 border-t border-gray-200/50 pt-4">
+                                <button onclick="toggleLike('${p._id}')" class="flex items-center gap-2 ${liked?'text-red-500 font-bold':'text-gray-500'}"><i class="fa-solid fa-heart"></i> ${p.likes.length}</button>
+                                <button onclick="toggleComment('${p._id}')" class="flex items-center gap-2 text-gray-500"><i class="fa-solid fa-comment"></i> ${p.comments.length}</button>
+                            </div>
+                            <div id="comments-${p._id}" class="hidden mt-4 pt-4 border-t border-gray-200/50">
+                                <div class="max-h-40 overflow-y-auto mb-3 space-y-2">${p.comments.map(cm => `<div class="text-xs bg-white/60 p-2 rounded"><span class="font-bold">${cm.userName}:</span> ${cm.text}</div>`).join('')}</div>
+                                <div class="flex gap-2"><input id="inp-${p._id}" type="text" class="w-full p-2 text-sm bg-white/50 rounded-lg" placeholder="Comment..."><button onclick="postComment('${p._id}')" class="text-purple-600 font-bold text-xs">POST</button></div>
+                            </div>
+                        </div>`; 
+                    }).join(''); 
+            } catch(e) { c.innerHTML = '<p class="text-center text-red-500">Error loading feed.</p>'; }
+        }
+
+        async function submitPost() { const fd = new FormData(); fd.append('content', document.getElementById('postContent').value); const f = document.getElementById('postImage').files[0]; if(f) fd.append('postImage', f); await APIService.feed.create(fd); document.getElementById('postModal').classList.add('hidden'); renderView('feed'); }
+        async function toggleLike(id) { await APIService.feed.like(id); renderView('feed'); }
+        function toggleComment(id) { document.getElementById(`comments-${id}`).classList.toggle('hidden'); }
+        async function postComment(id) { await APIService.feed.comment(id, document.getElementById(`inp-${id}`).value); renderView('feed'); }
+        async function toggleFollow(id, btn) { const res = await APIService.user.follow(id); if(res.status === 'followed') { btn.innerText = "Following"; btn.className = "btn-follow btn-following"; myFollowing.push(id); showToast("Following!"); } else { btn.innerText = "Follow"; btn.className = "btn-follow btn-not-following"; myFollowing = myFollowing.filter(uid => uid !== id); showToast("Unfollowed"); } updateMyStats(); }
+        async function deletePost(id) { if(confirm("Delete this post?")) { await APIService.feed.delete(id); renderView('feed'); } }
+        async function blockUser(id) { if(confirm("Block this user?")) { await APIService.user.block(id); showToast("User Blocked"); renderView('feed'); } }
+
+        // --- 3. PROFILE VIEW ---
+        async function viewUserProfile(id) {
+            const container = document.getElementById('main-content');
+            container.innerHTML = '<div class="text-center mt-20"><i class="fa-solid fa-spinner fa-spin text-4xl text-white"></i></div>';
+            
+            const data = await APIService.user.getProfile(id); 
+            const u = data.user; const posts = data.posts; const exps = u.experience || [];
+            const myId = localStorage.getItem("userId"); const isMe = id === myId; const isFollowing = myFollowing.includes(id);
+
+            container.innerHTML = `
+                <div class="glass-card p-8 mb-6 text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-purple-400 to-pink-400 opacity-50"></div>
+                    <img src="${u.photo||'https://placehold.co/100'}" class="relative w-28 h-28 rounded-full mx-auto mb-3 object-cover border-4 border-white shadow-xl" ${isMe ? 'onclick="document.getElementById(\'photoInput\').click()"' : ''}>
+                    ${isMe ? '<input type="file" id="photoInput" class="hidden" onchange="APIService.user.uploadPhoto(this.files[0])">' : ''}
+                    <h1 class="text-3xl font-black text-gray-800">${u.name}</h1>
+                    <p class="text-purple-600 font-medium mb-2">${u.headline||'Member'}</p>
+                    <div class="flex justify-center gap-6 my-4 text-sm font-bold text-gray-600"><div><span class="block text-xl text-black">${u.followers ? u.followers.length : 0}</span>Followers</div><div><span class="block text-xl text-black">${u.following ? u.following.length : 0}</span>Following</div></div>
+                    ${!isMe ? `<button onclick="toggleFollow('${u._id}', this)" class="btn-zobbly px-6 py-2 rounded-full font-bold shadow-lg">${isFollowing ? 'Following' : 'Follow'}</button> <button onclick="startChat('${u._id}', '${u.name}', '${u.photo}')" class="ml-2 bg-white text-purple-600 border border-purple-200 px-4 py-2 rounded-full font-bold"><i class="fa-solid fa-message"></i></button>` : `<button class="bg-gray-200 px-4 py-1 rounded-full text-xs" onclick="openEditProfile()">Edit Profile</button>`}
+                </div>
+                <div class="glass-card p-6 mb-6"><div class="flex justify-between mb-4 border-b border-gray-200/50 pb-2"><h2 class="font-bold text-lg text-gray-800">Experience</h2>${isMe ? `<button onclick="openExpModal()" class="text-xl text-purple-600"><i class="fa-solid fa-plus"></i></button>` : ''}</div><div>${exps.map(e=>`<div class="mb-3 p-3 bg-white/50 rounded-xl flex justify-between"><div><h3 class="font-bold text-gray-800">${e.company}</h3><p class="text-sm text-purple-600">${e.role}</p><p class="text-xs text-gray-400">${e.year}</p></div>${isMe ? `<div class="flex items-center gap-2"><button onclick="openExpModal('${e._id}','${e.company}','${e.role}','${e.year}')" class="text-blue-500"><i class="fa-solid fa-pencil"></i></button><button onclick="deleteExp('${e._id}')" class="text-red-500"><i class="fa-solid fa-trash"></i></button></div>` : ''}</div>`).join('')}</div></div>
+                <div class="glass-card p-6"><h2 class="text-xl font-bold mb-4 text-gray-800 border-b border-gray-200/50 pb-2">Activity</h2><div class="grid grid-cols-1 gap-4">${posts.length === 0 ? '<p class="text-center text-gray-400">No posts yet.</p>' : posts.map(p=>`<div class="bg-white/60 p-4 rounded-xl relative border border-white group"><p class="mb-3 text-sm font-medium text-gray-700">${p.content}</p>${p.image?`<img src="${p.image}" class="h-32 w-full object-cover rounded-lg">`:''}${isMe ? `<button onclick="deletePost('${p._id}')" class="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`).join('')}</div></div>`;
+        }
+
+        // --- 4. CHAT (FIXED: SLIDING SIDEBAR) ---
+        async function renderChat(c) {
+            c.innerHTML = `
+            <div class="glass-card h-[85vh] relative flex overflow-hidden p-0"> 
+                
+                <div id="chat-sidebar" class="absolute top-0 left-0 h-full w-80 bg-white z-20 shadow-2xl transition-transform duration-300 transform -translate-x-full border-r flex flex-col">
+                    <div class="p-3 border-b flex justify-between items-center bg-gray-50 h-16">
+                        <input onkeyup="searchChatUsers(this.value)" placeholder="Search..." class="w-full p-2 rounded-lg text-sm bg-white border border-gray-200 outline-none">
+                        <button onclick="toggleChatList()" class="ml-2 text-gray-500 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="chat-list" class="flex-1 overflow-y-auto bg-white"></div>
+                </div>
+
+                <div id="chat-view-container" class="w-full h-full flex flex-col bg-white/60 relative">
+                    
+                    <div id="chat-header" class="p-3 border-b bg-white/80 flex justify-between items-center h-16 shadow-sm z-10 relative">
+                        <div class="flex items-center gap-3">
+                            <button onclick="toggleChatList()" class="text-gray-600 hover:text-purple-600 p-2 rounded-full hover:bg-gray-100 transition"><i class="fa-solid fa-bars text-xl"></i></button>
+                            <div id="chat-user-info" class="hidden flex items-center gap-2">
+                                <img id="chat-header-img" src="" class="w-8 h-8 rounded-full border">
+                                <span id="chat-header-name" class="font-bold cursor-pointer hover:underline text-gray-800">User</span>
+                            </div>
+                            <span id="chat-placeholder-text" class="text-gray-500 font-bold ml-2">Select a chat</span>
+                        </div>
+                        <button onclick="clearChat()" class="text-xs text-red-500 hover:bg-red-50 px-3 py-1 rounded border border-red-200">Clear</button>
+                    </div>
+
+                    <div id="chat-msgs" class="flex-1 p-4 overflow-y-auto flex flex-col gap-2 bg-slate-50/30">
+                        <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                            <i class="fa-regular fa-comments text-4xl mb-2"></i>
+                            <p>Click <i class="fa-solid fa-bars"></i> to find friends</p>
+                        </div>
+                    </div>
+
+                    <div id="chat-input" class="p-3 border-t hidden flex gap-2 items-center bg-white z-10">
+                        <label class="cursor-pointer text-gray-500 hover:text-purple-600 p-2 rounded-full hover:bg-gray-100 transition"><i class="fa-solid fa-paperclip text-xl"></i><input type="file" onchange="uploadChatFile(this.files[0])" class="hidden"></label>
+                        <input id="msg-in" class="w-full p-3 rounded-full border bg-gray-50 outline-none focus:ring-1 focus:ring-purple-400 transition" placeholder="Type a message...">
+                        <button onclick="sendMsg()" class="bg-gradient-to-r from-purple-600 to-pink-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>`;
+            loadConversations();
+        }
+
+        function toggleChatList() {
+            const sidebar = document.getElementById('chat-sidebar');
+            // Toggle Logic: Using Translate X for smooth sliding
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full'); // Slide IN
+            } else {
+                sidebar.classList.add('-translate-x-full'); // Slide OUT
+            }
+        }
+
+        async function loadConversations() { 
+            const users = await APIService.chat.getConversations(); 
+            document.getElementById('chat-list').innerHTML = users.map(u => `
+                <div onclick="startChat('${u._id}','${u.name}','${u.photo}')" class="p-3 border-b cursor-pointer hover:bg-purple-50 flex gap-3 items-center transition">
+                    <img src="${u.photo||'https://placehold.co/30'}" class="w-10 h-10 rounded-full border shadow-sm">
+                    <div class="text-sm font-bold text-gray-700">${u.name}</div>
+                </div>`).join(''); 
+        }
+
+        async function searchChatUsers(q) { 
+            if(q.length < 1) return loadConversations(); 
+            const users = await APIService.chat.search(q); 
+            document.getElementById('chat-list').innerHTML = users.map(u => `
+                <div onclick="startChat('${u._id}','${u.name}','${u.photo}')" class="p-3 border-b cursor-pointer hover:bg-purple-50 flex gap-3 items-center transition">
+                    <img src="${u.photo||'https://placehold.co/30'}" class="w-10 h-10 rounded-full border shadow-sm">
+                    <div class="text-sm font-bold text-gray-700">${u.name}</div>
+                </div>`).join(''); 
+        }
+
+        async function startChat(id, name, photo) {
+            if(!document.getElementById('chat-header')) renderView('chat');
+            
+            // Auto close sidebar when chat selected
+            const sidebar = document.getElementById('chat-sidebar');
+            if(!sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.add('-translate-x-full');
+            }
+
+            activeChatUser = id;
+            
+            // Update Header Info
+            document.getElementById('chat-placeholder-text').classList.add('hidden');
+            const infoDiv = document.getElementById('chat-user-info');
+            infoDiv.classList.remove('hidden');
+            document.getElementById('chat-header-name').innerText = name;
+            document.getElementById('chat-header-img').src = photo || 'https://placehold.co/30';
+            document.getElementById('chat-header-name').onclick = () => viewUserProfile(id);
+            
+            document.getElementById('chat-input').classList.remove('hidden');
+            loadMsgs(); 
+            if(window.chatInterval) clearInterval(window.chatInterval); 
+            window.chatInterval = setInterval(loadMsgs, 3000);
+        }
+
+        async function loadMsgs() {
+            if(!activeChatUser) return;
+            const msgs = await APIService.chat.getHistory(activeChatUser);
+            const myId = localStorage.getItem("userId");
+            document.getElementById('chat-msgs').innerHTML = msgs.map(m => {
+                let content = m.content;
+                if(m.type==='image') content = `<img src="${m.fileUrl}" class="max-w-[200px] rounded-lg border shadow-sm">`;
+                if(m.type==='video') content = `<video src="${m.fileUrl}" controls class="max-w-[200px] rounded-lg shadow-sm"></video>`;
+                return `<div class="group flex ${m.senderId===myId?'justify-end':'justify-start'} items-end gap-2 mb-2">
+                    ${m.senderId===myId ? `<button onclick="deleteSingleMsg('${m._id}')" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition text-xs mb-2"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    <div class="${m.senderId===myId?'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-tr-none':'bg-white text-gray-800 border border-gray-200 rounded-tl-none'} px-4 py-2 rounded-2xl text-sm max-w-[75%] shadow-md">
+                        ${content}
+                    </div>
+                </div>`;
+            }).join('');
+            
+            // Auto scroll to bottom
+            const chatMsgs = document.getElementById('chat-msgs');
+            chatMsgs.scrollTop = chatMsgs.scrollHeight;
+        }
+
+        async function sendMsg() { const txt = document.getElementById('msg-in').value; if(!txt) return; await APIService.chat.send(activeChatUser, txt); document.getElementById('msg-in').value = ""; loadMsgs(); }
+        async function uploadChatFile(file) { const fd = new FormData(); fd.append("chatFile", file); fd.append("receiverId", activeChatUser); await APIService.chat.upload(fd); loadMsgs(); }
+        async function clearChat() { if(confirm("Clear chat?")) { await APIService.chat.clearChat(activeChatUser); loadMsgs(); } }
+        async function deleteSingleMsg(id) { if(confirm("Delete message?")) { await APIService.chat.deleteMsg(id); loadMsgs(); } }
+
+        // --- 5. NOTIFICATIONS ---
+        async function renderNotifications(c) {
+            const notifs = await APIService.notifications.getAll();
+            c.innerHTML = `<div class="glass-card p-6"><h2 class="font-bold mb-4">Notifications</h2>${notifs.length===0?'<p>No new notifications</p>':notifs.map(n=>`<div class="p-3 border-b hover:bg-white/50 cursor-pointer flex gap-3 items-center" onclick="handleNotifClick('${n.type}', '${n.relatedId}')"><i class="fa-solid fa-bell text-purple-500"></i> ${n.message}</div>`).join('')}</div>`;
+        }
+        function handleNotifClick(type, id) { if(type === 'follow' || type === 'message') viewUserProfile(id); else renderView('feed'); }
+
+        // --- 6. JOBS (UNCHANGED) ---
+        function renderJobs(container) {
+            container.innerHTML = `
+                <div class="glass-card p-8"><div class="mb-8 text-center"><h2 class="text-3xl font-black mb-2">Find Jobs</h2></div><div class="flex flex-col gap-4"><select id="api-source" class="w-full p-3 rounded-xl border" onchange="toggleInputs(this.value)"><option value="mantiks">Job Title</option><option value="mantiks-company">Company</option><option value="adzuna">Adzuna</option><option value="jsearch">JSearch</option><option value="google">Google</option></select><input id="job-what" type="text" placeholder="Job Title" class="w-full p-3 rounded-xl border"><div id="location-box"><input id="job-where" type="text" placeholder="Location" class="w-full p-3 rounded-xl border"></div><button onclick="searchJobsAction()" class="btn-zobbly w-full py-3 rounded-xl font-bold">Search</button></div><div id="jobList" class="mt-8 space-y-4"></div></div>`;
+        }
+        function toggleInputs(source) { document.getElementById("job-what").placeholder = source === "mantiks-company" ? "Company Name" : "Job Title"; }
+        async function searchJobsAction() {
+            const source = document.getElementById("api-source").value; const what = document.getElementById("job-what").value; const where = document.getElementById("job-where").value;
+            const list = document.getElementById("jobList"); list.innerHTML = "Searching...";
+            let ep = ""; if(source==="mantiks") ep=`/jobs/mantiks?what=${what}`; else if(source==="mantiks-company") ep=`/jobs/mantiks/company?name=${what}`; else if(source==="adzuna") ep=`/jobs/adzuna?what=${what}&where=${where}`; else if(source==="jsearch") ep=`/jobs/jsearch?query=${what} in ${where}`; else ep=`/jobs/google?q=${what}&location=${where}`;
+            try { const res = await APIService.jobs.search(ep); list.innerHTML = res.data.map(j => `<div class="bg-white p-4 rounded shadow mb-2"><h3 class="font-bold text-blue-600"><a href="${j.job_apply_link||j.redirect_url||'#'}" target="_blank">${j.job_title||j.title}</a></h3><p>${j.company_name||j.company?.display_name||j.employer_name}</p></div>`).join(''); } catch(e){list.innerHTML="Error";}
+        }
+
+        // --- EXTRAS ---
+        function openEditProfile() { document.getElementById('editProfileModal').classList.remove('hidden'); }
+        function openExpModal(id, c, r, y) { currentExpId = id; document.getElementById('modalContent').innerHTML = `<h2 class="text-xl font-bold mb-4 text-gray-800">${id?'Edit':'Add'} Experience</h2><input id="expCompany" value="${c||''}" placeholder="Company" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none"><input id="expRole" value="${r||''}" placeholder="Role" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none"><input id="expYear" value="${y||''}" placeholder="Year" class="w-full mb-4 p-3 bg-gray-50 rounded-xl border-none"><button onclick="submitExp()" class="btn-zobbly w-full py-2 rounded-xl font-bold">Save</button>`; document.getElementById('genericModal').classList.remove('hidden'); }
+        async function submitExp() { const d = { company: document.getElementById('expCompany').value, role: document.getElementById('expRole').value, year: document.getElementById('expYear').value }; if(currentExpId) await APIService.user.editExperience(currentExpId, d); else await APIService.user.addExperience(d); closeModal(); viewUserProfile(localStorage.getItem("userId")); }
+        async function deleteExp(id) { if(confirm("Delete?")) { await APIService.user.deleteExperience(id); viewUserProfile(localStorage.getItem("userId")); } }
+        function closeModal() { document.getElementById('genericModal').classList.add('hidden'); }
+        async function saveProfile() { await APIService.user.update(document.getElementById('editName').value, document.getElementById('editHeadline').value); localStorage.setItem("userName", document.getElementById('editName').value); location.reload(); }
+        async function backupData() { await APIService.user.backup(); }
+        async function deleteAccount() { if(confirm("Delete?")) { await APIService.user.delete(); APIService.auth.logout(); } }
+        function showToast(msg) { document.getElementById('toast-msg').innerText = msg; document.getElementById('toast').classList.remove('translate-y-24'); setTimeout(()=>document.getElementById('toast').classList.add('translate-y-24'), 3000); }
+
+        window.onload = checkLoginStatus;
+    </script>
+</body>
+</html>
