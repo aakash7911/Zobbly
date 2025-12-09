@@ -30,13 +30,14 @@ mongoose.connect(process.env.MONGO_URI)
   .catch((err) => console.log("❌ MongoDB Connection Error:", err));
 
 // ------------------- EMAIL TRANSPORTER -------------------
+// ------------------- EMAIL TRANSPORTER (UPDATED FOR PORT 465) -------------------
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: false, 
+  port: process.env.SMTP_PORT, // Ye ab 465 uthayega
+  secure: true, // ✅ Zaroori: Port 465 ke liye ise 'true' rakhein
   auth: {
-    user: process.env.SMTP_USER, // ✅ Hidden
-    pass: process.env.SMTP_PASS, // ✅ Hidden
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
