@@ -11,7 +11,13 @@ const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
+// Ye code index.js mein add karo
+app.get('/', (req, res) => {
+  res.send("Hello! Server is Running (Zobbly)");
+});// Ye code index.js mein add karo
+app.get('/', (req, res) => {
+  res.send("Hello! Server is Running (Zobbly)");
+});
 // 📁 Create Uploads Folder
 if (!fs.existsSync("./uploads")) {
     fs.mkdirSync("./uploads");
