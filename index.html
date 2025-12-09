@@ -213,12 +213,13 @@
     </div>
 
     <script>
-        const API_BASE = "https://zobbly.onrender.com/api";
-        //const API_BASE = "http://localhost:5000/api";
+        // ✅ CORRECT API CONNECTION
+        const API_BASE = "https://zobbly.onrender.com"; 
+        
         let activeChatUser = null;
         let myFollowers = []; 
         let myFollowing = [];
-        let authContext = ""; // 'register' or 'forgot'
+        let authContext = ""; 
 
         const getHeaders = (isFormData = false) => {
             const token = localStorage.getItem("token");
@@ -235,7 +236,7 @@
                     const password = document.getElementById('loginPass').value;
                     if(!email || !password) return showToast("Enter credentials");
                     try {
-                        const res = await fetch(`${API_BASE}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+                        const res = await fetch(`${API_BASE}/api/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
                         const data = await res.json();
                         if(res.ok) {
                             localStorage.setItem("token", data.token);
@@ -244,8 +245,8 @@
                             localStorage.setItem("userEmail", data.user.email);
                             if(data.user.photo) localStorage.setItem("userPhoto", data.user.photo);
                             checkLoginStatus();
-                        } else alert(data.error);
-                    } catch(e) { alert("Server connection failed. Is server.js running?"); }
+                        } else alert(data.error || "Login Failed");
+                    } catch(e) { alert("Server Error. Check your connection."); }
                 },
                 register: async () => {
                     const name = document.getElementById('regName').value;
@@ -253,10 +254,10 @@
                     const password = document.getElementById('regPass').value;
                     if(!name || !email || !password) return showToast("Fill all fields");
                     try {
-                        const res = await fetch(`${API_BASE}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, password }) });
+                        const res = await fetch(`${API_BASE}/api/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, password }) });
                         if(res.ok) { 
                             authContext = 'register';
-                            APIService.auth.sendOtp('register', email); // Use internal call to handle flow
+                            APIService.auth.sendOtp('register', email);
                         } else alert("Registration Failed");
                     } catch(e) { showToast("Server Error"); }
                 },
@@ -265,7 +266,7 @@
                     const type = context || 'forgot';
                     authContext = type;
                     try {
-                        const res = await fetch(`${API_BASE}/send-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, type }) });
+                        const res = await fetch(`${API_BASE}/api/send-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, type }) });
                         if(res.ok) {
                             localStorage.setItem("tempEmail", email);
                             document.getElementById('displayEmail').innerText = email;
@@ -278,7 +279,7 @@
                     const otp = document.getElementById('otpCode').value;
                     const email = localStorage.getItem("tempEmail");
                     try {
-                        const res = await fetch(`${API_BASE}/verify-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, otp }) });
+                        const res = await fetch(`${API_BASE}/api/verify-otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, otp }) });
                         if(res.ok) { 
                             showToast("Verified!"); 
                             if(authContext === 'forgot') {
@@ -294,7 +295,7 @@
                     const newPassword = document.getElementById('newPassInput').value;
                     const email = localStorage.getItem("tempEmail");
                     try {
-                        const res = await fetch(`${API_BASE}/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, newPassword }) });
+                        const res = await fetch(`${API_BASE}/api/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, newPassword }) });
                         if(res.ok) { 
                             showToast("Password Updated!"); 
                             switchAuth('form-login'); 
@@ -303,52 +304,55 @@
                 },
                 logout: () => { localStorage.clear(); location.reload(); }
             },
-            // ... (Rest of APIs kept exactly same)
+            
+            // ✅ Updated Paths to include '/api/' explicitly
             user: {
-                getProfile: async (id) => (await fetch(`${API_BASE}/user/profile/${id}`)).json(),
-                follow: async (id) => (await fetch(`${API_BASE}/user/follow/${id}`, { method: "PUT", headers: getHeaders() })).json(),
-                update: async (name, headline) => { await fetch(`${API_BASE}/user/update`, { method: "PUT", headers: getHeaders(), body: JSON.stringify({name, headline}) }); },
-                delete: async () => { await fetch(`${API_BASE}/user/delete`, { method: "DELETE", headers: getHeaders() }); },
-                uploadPhoto: async (file) => { const fd = new FormData(); fd.append("photo", file); const res = await fetch(`${API_BASE}/user/upload-photo`, { method: "POST", headers: { "x-auth-token": localStorage.getItem("token") }, body: fd }); return await res.json(); },
-                backup: async () => { const res = await fetch(`${API_BASE}/user/backup`, { headers: getHeaders() }); const data = await res.json(); const blob = new Blob([JSON.stringify(data)], {type:"application/json"}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="backup.json"; a.click(); },
-                block: async (id) => { const res = await fetch(`${API_BASE}/user/block/${id}`, { method: "PUT", headers: getHeaders() }); return await res.json(); },
-                addExperience: async (expData) => { await fetch(`${API_BASE}/user/add-experience`, { method: "POST", headers: getHeaders(), body: JSON.stringify({ userId: localStorage.getItem("userId"), experienceData: expData }) }); },
-                editExperience: async (id, expData) => { await fetch(`${API_BASE}/user/experience/${id}`, { method: "PUT", headers: getHeaders(), body: JSON.stringify(expData) }); },
-                deleteExperience: async (id) => { await fetch(`${API_BASE}/user/experience/${id}`, { method: "DELETE", headers: getHeaders() }); },
+                getProfile: async (id) => (await fetch(`${API_BASE}/api/user/profile/${id}`)).json(),
+                follow: async (id) => (await fetch(`${API_BASE}/api/user/follow/${id}`, { method: "PUT", headers: getHeaders() })).json(),
+                update: async (name, headline) => { await fetch(`${API_BASE}/api/user/update`, { method: "PUT", headers: getHeaders(), body: JSON.stringify({name, headline}) }); },
+                delete: async () => { await fetch(`${API_BASE}/api/user/delete`, { method: "DELETE", headers: getHeaders() }); },
+                uploadPhoto: async (file) => { const fd = new FormData(); fd.append("photo", file); const res = await fetch(`${API_BASE}/api/user/upload-photo`, { method: "POST", headers: { "x-auth-token": localStorage.getItem("token") }, body: fd }); return await res.json(); },
+                backup: async () => { const res = await fetch(`${API_BASE}/api/user/backup`, { headers: getHeaders() }); const data = await res.json(); const blob = new Blob([JSON.stringify(data)], {type:"application/json"}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="backup.json"; a.click(); },
+                block: async (id) => { const res = await fetch(`${API_BASE}/api/user/block/${id}`, { method: "PUT", headers: getHeaders() }); return await res.json(); },
+                addExperience: async (expData) => { await fetch(`${API_BASE}/api/user/add-experience`, { method: "POST", headers: getHeaders(), body: JSON.stringify({ userId: localStorage.getItem("userId"), experienceData: expData }) }); },
+                editExperience: async (id, expData) => { await fetch(`${API_BASE}/api/user/experience/${id}`, { method: "PUT", headers: getHeaders(), body: JSON.stringify(expData) }); },
+                deleteExperience: async (id) => { await fetch(`${API_BASE}/api/user/experience/${id}`, { method: "DELETE", headers: getHeaders() }); },
             },
             feed: {
-                create: async(fd) => fetch(`${API_BASE}/posts/create`, {method:"POST", headers:getHeaders(true), body:fd}),
-                getAll: async() => (await fetch(`${API_BASE}/posts`)).json(),
-                getMyPosts: async() => (await fetch(`${API_BASE}/my-posts`, {headers:getHeaders()})).json(),
-                like: async(id) => fetch(`${API_BASE}/posts/like/${id}`, {method:"PUT", headers:getHeaders()}),
-                comment: async(id, text) => fetch(`${API_BASE}/posts/comment/${id}`, {method:"POST", headers:getHeaders(), body:JSON.stringify({text})}),
-                delete: async(id) => fetch(`${API_BASE}/posts/${id}`, {method:"DELETE", headers:getHeaders()})
+                create: async(fd) => fetch(`${API_BASE}/api/posts/create`, {method:"POST", headers:getHeaders(true), body:fd}),
+                getAll: async() => { const res = await fetch(`${API_BASE}/api/posts`); if(!res.ok) throw new Error("Feed Error"); return res.json(); },
+                getMyPosts: async() => (await fetch(`${API_BASE}/api/my-posts`, {headers:getHeaders()})).json(),
+                like: async(id) => fetch(`${API_BASE}/api/posts/like/${id}`, {method:"PUT", headers:getHeaders()}),
+                comment: async(id, text) => fetch(`${API_BASE}/api/posts/comment/${id}`, {method:"POST", headers:getHeaders(), body:JSON.stringify({text})}),
+                delete: async(id) => fetch(`${API_BASE}/api/posts/${id}`, {method:"DELETE", headers:getHeaders()})
             },
             chat: {
-                search: async (q) => (await fetch(`${API_BASE}/search?q=${q}`, { headers: getHeaders() })).json(),
-                send: async (rid, txt) => fetch(`${API_BASE}/messages`, { method:"POST", headers:getHeaders(), body:JSON.stringify({receiverId:rid, content:txt}) }),
-                upload: async (fd) => fetch(`${API_BASE}/messages/upload`, { method: "POST", headers: getHeaders(true), body: fd }),
-                getHistory: async(id) => (await fetch(`${API_BASE}/messages/${id}`, { headers: getHeaders() })).json(),
-                deleteMsg: async (id) => { await fetch(`${API_BASE}/messages/${id}`, { method: "DELETE", headers: getHeaders() }); },
-                clearChat: async (id) => { await fetch(`${API_BASE}/messages/clear/${id}`, { method: "DELETE", headers: getHeaders() }); },
-                getConversations: async() => (await fetch(`${API_BASE}/chat/conversations`, { headers: getHeaders() })).json()
+                search: async (q) => (await fetch(`${API_BASE}/api/search?q=${q}`, { headers: getHeaders() })).json(),
+                send: async (rid, txt) => fetch(`${API_BASE}/api/messages`, { method:"POST", headers:getHeaders(), body:JSON.stringify({receiverId:rid, content:txt}) }),
+                upload: async (fd) => fetch(`${API_BASE}/api/messages/upload`, { method: "POST", headers: getHeaders(true), body: fd }),
+                getHistory: async(id) => (await fetch(`${API_BASE}/api/messages/${id}`, { headers: getHeaders() })).json(),
+                deleteMsg: async (id) => { await fetch(`${API_BASE}/api/messages/${id}`, { method: "DELETE", headers: getHeaders() }); },
+                clearChat: async (id) => { await fetch(`${API_BASE}/api/messages/clear/${id}`, { method: "DELETE", headers: getHeaders() }); },
+                getConversations: async() => (await fetch(`${API_BASE}/api/chat/conversations`, { headers: getHeaders() })).json()
             },
             notifications: {
-                getAll: async () => (await fetch(`${API_BASE}/notifications`, { headers: getHeaders() })).json()
+                getAll: async () => (await fetch(`${API_BASE}/api/notifications`, { headers: getHeaders() })).json()
             },
             jobs: {
-                search: async (endpoint) => (await fetch(`${API_BASE}${endpoint}`)).json()
+                search: async (endpoint) => (await fetch(`${API_BASE}/api${endpoint}`)).json()
             }
         };
 
-        // --- UI LOGIC (UNTOUCHED MOSTLY) ---
+        // --- UI LOGIC ---
         async function checkLoginStatus() {
             if(localStorage.getItem("token")) {
                 document.getElementById('auth-screen').classList.add('hidden-screen');
                 document.getElementById('app-screen').classList.remove('hidden-screen');
                 document.getElementById('sidebar-name').innerText = localStorage.getItem("userName");
                 document.getElementById('sidebar-email').innerText = localStorage.getItem("userEmail");
-                if(localStorage.getItem("userPhoto") !== "undefined") document.getElementById('sidebar-img').src = localStorage.getItem("userPhoto");
+                if(localStorage.getItem("userPhoto") && localStorage.getItem("userPhoto") !== "undefined") {
+                    document.getElementById('sidebar-img').src = localStorage.getItem("userPhoto");
+                }
                 
                 await updateMyStats();
                 renderView('feed');
@@ -360,7 +364,6 @@
             try {
                 const data = await APIService.user.getProfile(localStorage.getItem("userId"));
                 myFollowing = data.user.following || [];
-                document.getElementById('stat-following').innerText = myFollowing.length;
                 document.getElementById('stat-followers').innerText = (data.user.followers || []).length;
             } catch(e){}
         }
@@ -387,7 +390,6 @@
             c.innerHTML = '<div class="text-center mt-20"><i class="fa-solid fa-spinner fa-spin text-4xl text-white"></i></div>';
             c.className = "col-span-1 md:col-span-6 animate-pop-view";
             
-            // Handle Navigation Active State
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('nav-active', 'text-purple-600'));
             let activeBtnId = `nav-${view}`;
             if(document.getElementById(activeBtnId)) document.getElementById(activeBtnId).classList.add('nav-active', 'text-purple-600');
@@ -402,19 +404,30 @@
         }
 
         // --- 1. FEED ---
-        async function renderFeed(c) { 
+        async function renderFeed(c) {
+            // ✅ ALWAYS SHOW POST BAR FIRST
+            const createPostBar = `
+                <div class="glass-card p-4 mb-6 flex gap-3 cursor-pointer hover:bg-white/90 transition items-center" onclick="document.getElementById('postModal').classList.remove('hidden')">
+                    <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-lg"><i class="fa-solid fa-pen-nib"></i></div>
+                    <div class="w-full bg-white/50 rounded-full px-6 py-3 text-sm text-gray-500 flex items-center shadow-inner">Start a buzz...</div>
+                </div>`;
+            c.innerHTML = createPostBar; 
+
             try {
                 const posts = await APIService.feed.getAll(); 
                 const myId = localStorage.getItem("userId");
-                c.innerHTML = `
-                    <div class="glass-card p-4 mb-6 flex gap-3 cursor-pointer hover:bg-white/90 transition" onclick="document.getElementById('postModal').classList.remove('hidden')">
-                        <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-lg"><i class="fa-solid fa-pen-nib"></i></div>
-                        <div class="w-full bg-white/50 rounded-full px-6 py-3 text-sm text-gray-500 flex items-center shadow-inner">Start a buzz...</div>
-                    </div>` + 
-                    posts.map(p => { 
-                        const liked = p.likes.includes(myId);
+                
+                if(posts && posts.length > 0) {
+                    c.innerHTML += posts.map(p => { 
+                        // ✅ FIX: Handle Orphaned Posts & Missing Data
+                        if(!p.userId) return ''; // Skip posts with no user (deleted users)
+
+                        const likes = p.likes || [];
+                        const comments = p.comments || [];
+                        const liked = likes.includes(myId);
                         const isMe = p.userId._id === myId;
                         const isFollowing = myFollowing.includes(p.userId._id);
+
                         return `<div class="glass-card mb-6 p-5 relative">
                             <div class="flex justify-between items-start mb-4">
                                 <div class="flex items-center gap-3">
@@ -439,16 +452,22 @@
                             <p class="text-gray-700 mb-4">${p.content}</p>
                             ${p.image?`<img src="${p.image}" class="w-full rounded-2xl mb-4 object-cover max-h-96 shadow-md">`:''}
                             <div class="flex items-center gap-6 border-t border-gray-200/50 pt-4">
-                                <button onclick="toggleLike('${p._id}')" class="flex items-center gap-2 ${liked?'text-red-500 font-bold':'text-gray-500'}"><i class="fa-solid fa-heart"></i> ${p.likes.length}</button>
-                                <button onclick="toggleComment('${p._id}')" class="flex items-center gap-2 text-gray-500"><i class="fa-solid fa-comment"></i> ${p.comments.length}</button>
+                                <button onclick="toggleLike('${p._id}')" class="flex items-center gap-2 ${liked?'text-red-500 font-bold':'text-gray-500'}"><i class="fa-solid fa-heart"></i> ${likes.length}</button>
+                                <button onclick="toggleComment('${p._id}')" class="flex items-center gap-2 text-gray-500"><i class="fa-solid fa-comment"></i> ${comments.length}</button>
                             </div>
                             <div id="comments-${p._id}" class="hidden mt-4 pt-4 border-t border-gray-200/50">
-                                <div class="max-h-40 overflow-y-auto mb-3 space-y-2">${p.comments.map(cm => `<div class="text-xs bg-white/60 p-2 rounded"><span class="font-bold">${cm.userName}:</span> ${cm.text}</div>`).join('')}</div>
+                                <div class="max-h-40 overflow-y-auto mb-3 space-y-2">${comments.map(cm => `<div class="text-xs bg-white/60 p-2 rounded"><span class="font-bold">${cm.userName}:</span> ${cm.text}</div>`).join('')}</div>
                                 <div class="flex gap-2"><input id="inp-${p._id}" type="text" class="w-full p-2 text-sm bg-white/50 rounded-lg" placeholder="Comment..."><button onclick="postComment('${p._id}')" class="text-purple-600 font-bold text-xs">POST</button></div>
                             </div>
                         </div>`; 
                     }).join(''); 
-            } catch(e) { c.innerHTML = '<p class="text-center text-red-500">Error loading feed.</p>'; }
+                } else {
+                    c.innerHTML += '<div class="text-center text-gray-500 mt-10"><p>No posts yet. Be the first!</p></div>';
+                }
+            } catch(e) { 
+                console.error(e);
+                c.innerHTML += `<p class="text-center text-red-400 mt-4 text-sm">Could not load older posts. But you can still post!</p>`;
+            }
         }
 
         async function submitPost() { const fd = new FormData(); fd.append('content', document.getElementById('postContent').value); const f = document.getElementById('postImage').files[0]; if(f) fd.append('postImage', f); await APIService.feed.create(fd); document.getElementById('postModal').classList.add('hidden'); renderView('feed'); }
