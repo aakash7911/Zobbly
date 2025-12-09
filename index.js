@@ -1,17 +1,16 @@
-require("dotenv").config(); // ✅ Sabse upar ye line zaroori hai
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
-const nodemailer = require("nodemailer");
-const axios = require("axios");
+const axios = require("axios"); // ✅ API ke liye zaroori
 const path = require("path");
 const fs = require("fs");
 
 const app = express();
-const PORT = process.env.PORT || 5000; // ✅ Render ka port automatically lega
+const PORT = process.env.PORT || 5000;
 
 // 📁 Create Uploads Folder if not exists
 if (!fs.existsSync("./uploads")) {
@@ -24,24 +23,11 @@ app.use(cors());
 app.use("/uploads", express.static("uploads"));
 
 // ------------------- DATABASE CONNECT -------------------
-// ✅ Ab ye Environment Variable se link lega (Render ke liye zaroori)
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected Successfully"))
   .catch((err) => console.log("❌ MongoDB Connection Error:", err));
 
-// ------------------- EMAIL TRANSPORTER -------------------
-// ------------------- EMAIL TRANSPORTER (UPDATED FOR PORT 465) -------------------
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT, // Ye ab 465 uthayega
-  secure: true, // ✅ Zaroori: Port 465 ke liye ise 'true' rakhein
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-// ======================= SCHEMAS (SAME AS BEFORE) =======================
+// ======================= SCHEMAS =======================
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
@@ -103,7 +89,7 @@ const verifyToken = (req, res, next) => {
   const token = req.header("x-auth-token");
   if (!token) return res.status(401).json({ error: "Access Denied" });
   try {
-    const verified = jwt.verify(token, process.env.JWT_SECRET); // ✅ Hidden
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
     req.user = verified;
     next();
   } catch (err) { res.status(400).json({ error: "Invalid Token" }); }
@@ -181,8 +167,8 @@ app.get("/api/chat/conversations", verifyToken, async (req, res) => {
 // Feed
 app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (req, res) => {
     try {
-        // NOTE: Render par local uploads delete ho jate hain restart par. Cloudinary use karna behtar hai.
-        const img = req.file ? `http://localhost:${PORT}/uploads/${req.file.filename}` : "";
+        // NOTE: Render par local uploads delete ho jate hain restart par.
+        const img = req.file ? `https://zobbly.onrender.com/uploads/${req.file.filename}` : "";
         const newPost = new Post({ userId: req.user.id, content: req.body.content, image: img }); 
         await newPost.save();
         const user = await User.findById(req.user.id);
@@ -223,7 +209,7 @@ app.post("/api/messages", verifyToken, async (req, res) => {
 });
 app.post("/api/messages/upload", verifyToken, upload.single("chatFile"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file" });
-    const url = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+    const url = `https://zobbly.onrender.com/uploads/${req.file.filename}`;
     const type = req.file.mimetype.startsWith("video") ? "video" : "image";
     await new Message({ senderId: req.user.id, receiverId: req.body.receiverId, content: "", type, fileUrl: url }).save();
     const sender = await User.findById(req.user.id);
@@ -277,10 +263,13 @@ app.post("/api/login", async (req, res) => {
   try { const { email, password } = req.body; const user = await User.findOne({ email }); if(!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({error: "Invalid"}); const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET); res.json({ token, user: { _id: user._id, name: user.name, email: user.email, photo: user.photo, blockedUsers: user.blockedUsers } }); } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
-// OTP via BREVO
+// ============================================================
+// 🔥 UPDATED: SEND OTP VIA BREVO API (This FIXES the Timeout)
+// ============================================================
 app.post("/api/send-otp", async (req, res) => {
   try { 
       const { email, type } = req.body; 
+      
       const user = await User.findOne({ email }); 
       if (!user) return res.status(404).json({ error: "User not found" }); 
 
@@ -289,22 +278,40 @@ app.post("/api/send-otp", async (req, res) => {
       user.otpExpires = Date.now() + 10 * 60 * 1000; 
       await user.save(); 
 
-      transporter.sendMail({ 
-          from: `"Zobbly" <${process.env.SENDER_EMAIL}>`, // ✅ From Env
-          to: email, 
-          subject: "Verification", 
-          text: `Your OTP is: ${otpCode}` 
-      }, (err) => { 
-          if (err) {
-            console.log("Email Error: ", err);
-            return res.status(500).json({ error: "Email failed" }); 
-          }
-          res.json({ message: "OTP Sent" }); 
-      }); 
-  } catch (err) { res.status(500).json({ error: "Server Error" }); }
+      // ✅ Brevo API Use kar rahe hain (SMTP Blocked issue fixed)
+      const emailData = {
+        sender: { name: "Zobbly App", email: process.env.SENDER_EMAIL },
+        to: [{ email: email }],
+        subject: "Zobbly Verification Code",
+        htmlContent: `<html>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                          <h2 style="color: #333;">Login Verification</h2>
+                          <p>Your OTP code is:</p>
+                          <p style="font-size: 24px; font-weight: bold; color: #4CAF50; letter-spacing: 2px;">${otpCode}</p>
+                          <p style="color: #666; font-size: 12px;">Valid for 10 minutes. Do not share this code.</p>
+                        </body>
+                      </html>`
+      };
+
+      // Call Brevo API
+      await axios.post("https://api.brevo.com/v3/smtp/email", emailData, {
+        headers: {
+          "accept": "application/json",
+          "api-key": process.env.BREVO_API_KEY, // ✅ Render Env Variable se Key lega
+          "content-type": "application/json"
+        }
+      });
+
+      console.log("✅ OTP Sent Successfully to:", email);
+      res.json({ message: "OTP Sent" }); 
+
+  } catch (err) { 
+      console.log("❌ Brevo API Error:", err.response ? err.response.data : err.message);
+      res.status(500).json({ error: "Email sending failed" }); 
+  }
 });
 
-// (Remaining Auth Routes Same as before...)
+// (Remaining Auth Routes)
 app.post("/api/verify-otp", async (req, res) => {
   try { const { email, otp } = req.body; const user = await User.findOne({ email }); if (!user || user.otp !== otp) return res.status(400).json({ error: "Invalid" }); res.json({ message: "Verified" }); } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
@@ -328,7 +335,7 @@ app.put("/api/user/experience/:expId", verifyToken, async (req, res) => { const 
 app.delete("/api/user/experience/:expId", verifyToken, async (req, res) => { const user = await User.findById(req.user.id); user.experience.pull(req.params.expId); await user.save(); res.json({ message: "Deleted" }); });
 app.post("/api/user/upload-photo", verifyToken, upload.single("photo"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file" });
-    const url = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+    const url = `https://zobbly.onrender.com/uploads/${req.file.filename}`;
     await User.findByIdAndUpdate(req.user.id, { photo: url }); res.json({ photoUrl: url });
 });
 
