@@ -59,6 +59,45 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", userSchema);
 
+// 1. USER SCHEMA (Update karo)
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  username: { type: String, unique: true, trim: true, lowercase: true }, 
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  headline: { type: String, default: "Zobbly User" },
+  photo: { type: String, default: "" },
+  country: { type: String, default: "India" },
+  language: { type: String, default: "en" },
+  otp: { type: String }, otpExpires: { type: Date }, 
+  experience: [{ company: String, role: String, year: String }],
+  
+  // ✅ NEW: Report Count & Blocked Users
+  reportCount: { type: Number, default: 0 }, // Kitni baar report hua
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Maine kisko block kiya
+  
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
+}, { timestamps: true });
+
+// 2. POST SCHEMA (Update karo)
+const postSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    content: { type: String, required: true },
+    image: { type: String }, 
+    likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], 
+    comments: [{ 
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        userName: String,
+        text: String,
+        createdAt: { type: Date, default: Date.now }
+    }],
+    // ✅ NEW: Post specific reports
+    reportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Kon report kar chuka hai
+    views: { type: Number, default: 0 },
+    category: { type: String, default: 'general' }
+}, { timestamps: true });
+
 // 2. Notification Schema (Updated for Redirection & Sender Info)
 const notificationSchema = new mongoose.Schema({
     recipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -228,35 +267,44 @@ app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (re
 // ✅ SMART FEED: Shows posts from Following + Same Country
 // ✅ SMART FEED: Shows posts from User's Country FIRST, then others.
 // Agar country ki post nahi hai, to Global posts dikhayega (Crash nahi hoga)
+// ✅ SMART FEED: Shows posts from User's Country FIRST + HIDES Blocked Users
 app.get("/api/posts", verifyToken, async (req, res) => { 
     try {
         const currentUser = await User.findById(req.user.id);
         
-        // Agar user ki country set nahi hai to default 'India' man lo
-        const myCountry = currentUser?.country || "India"; 
+        if(!currentUser) return res.status(404).json({error: "User not found"});
 
-        // 1. Fetch ALL posts (Sari posts le aao)
-        let posts = await Post.find()
-            .populate("userId", "name photo headline username country") // User details with country
-            .sort({ createdAt: -1 }); // Pehle newest posts rakho
+        const myCountry = currentUser.country || "India"; 
+        
+        // Blocked Users List nikalo
+        const blockedList = currentUser.blockedUsers || [];
 
-        // 2. Custom Sort Logic (Isse crash nahi hoga)
+        // 1. Fetch posts BUT EXCLUDE Blocked Users ($nin means Not In)
+        let posts = await Post.find({
+            userId: { $nin: blockedList } // 🚫 Blocked users ki post load mat karo
+        })
+        .populate("userId", "name photo headline username country") 
+        .sort({ createdAt: -1 }); 
+
+        // 2. Custom Sort Logic: Move 'myCountry' posts to the top
         posts.sort((a, b) => {
-            // Safety Check: Agar kisi post ka user delete ho chuka hai to crash na ho
+            // Safety check for deleted users
             if (!a.userId || !b.userId) return 0;
 
             const aIsLocal = a.userId.country === myCountry;
             const bIsLocal = b.userId.country === myCountry;
 
-            // Agar A local hai aur B nahi, to A ko upar bhejo
-            if (aIsLocal && !bIsLocal) return -1; 
-            
-            // Agar B local hai aur A nahi, to B ko upar bhejo
+            if (aIsLocal && !bIsLocal) return -1; // Local upar
             if (!aIsLocal && bIsLocal) return 1;  
-            
-            // Agar dono same (dono local ya dono global) hain, to date wahi rehne do
             return 0; 
         });
+
+        res.json(posts);
+    } catch(e) { 
+        console.error(e);
+        res.status(500).json({error: "Error"}); 
+    }
+});
 
         res.json(posts);
     } catch(e) { 
@@ -430,6 +478,65 @@ app.post("/api/register", async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
+// ✅ REPORT POST API (Auto Delete Logic)
+app.post('/api/posts/report/:id', verifyToken, async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) return res.status(404).json({ error: "Post not found" });
+
+        // Check agar user pehle hi report kar chuka hai
+        if (post.reportedBy.includes(req.user.id)) {
+            return res.status(400).json({ error: "You already reported this." });
+        }
+
+        // Add reporter to post
+        post.reportedBy.push(req.user.id);
+        await post.save();
+
+        // Increment User Report Count
+        const postOwner = await User.findById(post.userId);
+        if (postOwner) {
+            postOwner.reportCount += 1;
+            await postOwner.save();
+
+            // ⚠️ CHECK: AGAR 50 REPORTS HO GAYE TOH ACCOUNT DELETE
+            if (postOwner.reportCount >= 50) {
+                await User.findByIdAndDelete(postOwner._id);
+                await Post.deleteMany({ userId: postOwner._id });
+                await Message.deleteMany({ $or: [{ senderId: postOwner._id }, { receiverId: postOwner._id }] });
+                await Notification.deleteMany({ $or: [{ recipient: postOwner._id }, { sender: postOwner._id }] });
+                
+                return res.json({ message: "User banned due to excessive reports." });
+            }
+        }
+
+        res.json({ message: "Report submitted." });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ✅ REPORT USER API (Direct Profile Report)
+app.post('/api/user/report/:id', verifyToken, async (req, res) => {
+    try {
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+        targetUser.reportCount += 1;
+        await targetUser.save();
+
+        // ⚠️ Auto Delete Check
+        if (targetUser.reportCount >= 50) {
+            await User.findByIdAndDelete(targetUser._id);
+            await Post.deleteMany({ userId: targetUser._id });
+            return res.json({ message: "User banned due to excessive reports." });
+        }
+
+        res.json({ message: "User reported." });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 app.post("/api/login", async (req, res) => {
   try { 
       const { email, password } = req.body; 
