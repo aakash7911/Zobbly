@@ -446,6 +446,28 @@ app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
         res.json(post.comments);
     } catch (e) { res.status(500).json({ error: "Error adding comment" }); }
 });
+// ✅ DELETE COMMENT API
+app.delete("/api/posts/comment/:postId/:commentId", verifyToken, async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.postId);
+        if(!post) return res.status(404).json({error: "Post not found"});
+
+        const comment = post.comments.id(req.params.commentId);
+        if(!comment) return res.status(404).json({error: "Comment not found"});
+
+        // Logic: Delete only if user is Post Owner OR Comment Owner
+        if(comment.userId.toString() === req.user.id || post.userId.toString() === req.user.id) {
+            comment.deleteOne(); // Delete comment
+            await post.save();
+            return res.json(post.comments); // Return updated comments
+        } else {
+            return res.status(401).json({error: "Unauthorized"});
+        }
+    } catch(e) {
+        console.error(e);
+        res.status(500).json({error: "Server Error"});
+    }
+});
 
 // --- 5. NOTIFICATIONS ---
 app.get("/api/notifications", verifyToken, async (req, res) => {
