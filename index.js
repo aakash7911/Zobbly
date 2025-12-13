@@ -226,32 +226,81 @@ app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (re
 });
 
 // ✅ SMART FEED: Shows posts from Following + Same Country
+// ✅ SMART FEED: Shows posts from User's Country FIRST, then others.
+// Agar country ki post nahi hai, to Global posts dikhayega (Crash nahi hoga)
 app.get("/api/posts", verifyToken, async (req, res) => { 
     try {
         const currentUser = await User.findById(req.user.id);
         
-        // Find posts where user is in following list OR user is me OR user is in same country
-        const posts = await Post.find({
-            $or: [
-                { userId: { $in: currentUser.following } },
-                { userId: req.user.id }
-            ]
-        })
-        .populate("userId", "name photo headline username country")
-        .sort({ createdAt: -1 });
+        // Agar user ki country set nahi hai to default 'India' man lo
+        const myCountry = currentUser?.country || "India"; 
 
-        // Backup: If feed is empty, show global posts
-        if (posts.length === 0) {
-            const globalPosts = await Post.find()
-                .populate("userId", "name photo headline username")
-                .sort({ createdAt: -1 }).limit(20);
-            return res.json(globalPosts);
-        }
+        // 1. Fetch ALL posts (Sari posts le aao)
+        let posts = await Post.find()
+            .populate("userId", "name photo headline username country") // User details with country
+            .sort({ createdAt: -1 }); // Pehle newest posts rakho
+
+        // 2. Custom Sort Logic (Isse crash nahi hoga)
+        posts.sort((a, b) => {
+            // Safety Check: Agar kisi post ka user delete ho chuka hai to crash na ho
+            if (!a.userId || !b.userId) return 0;
+
+            const aIsLocal = a.userId.country === myCountry;
+            const bIsLocal = b.userId.country === myCountry;
+
+            // Agar A local hai aur B nahi, to A ko upar bhejo
+            if (aIsLocal && !bIsLocal) return -1; 
+            
+            // Agar B local hai aur A nahi, to B ko upar bhejo
+            if (!aIsLocal && bIsLocal) return 1;  
+            
+            // Agar dono same (dono local ya dono global) hain, to date wahi rehne do
+            return 0; 
+        });
 
         res.json(posts);
-    } catch(e) { res.status(500).json({error: "Error"}); }
-});
+    } catch(e) { 
+        console.error("Feed Error:", e); // Console me error dikhega debugging ke liye
+        res.status(500).json({error: "Server Error fetching posts"}); 
+    }
+});// ✅ SMART FEED: Shows posts from User's Country FIRST, then others.
+// Agar country ki post nahi hai, to Global posts dikhayega (Crash nahi hoga)
+app.get("/api/posts", verifyToken, async (req, res) => { 
+    try {
+        const currentUser = await User.findById(req.user.id);
+        
+        // Agar user ki country set nahi hai to default 'India' man lo
+        const myCountry = currentUser?.country || "India"; 
 
+        // 1. Fetch ALL posts (Sari posts le aao)
+        let posts = await Post.find()
+            .populate("userId", "name photo headline username country") // User details with country
+            .sort({ createdAt: -1 }); // Pehle newest posts rakho
+
+        // 2. Custom Sort Logic (Isse crash nahi hoga)
+        posts.sort((a, b) => {
+            // Safety Check: Agar kisi post ka user delete ho chuka hai to crash na ho
+            if (!a.userId || !b.userId) return 0;
+
+            const aIsLocal = a.userId.country === myCountry;
+            const bIsLocal = b.userId.country === myCountry;
+
+            // Agar A local hai aur B nahi, to A ko upar bhejo
+            if (aIsLocal && !bIsLocal) return -1; 
+            
+            // Agar B local hai aur A nahi, to B ko upar bhejo
+            if (!aIsLocal && bIsLocal) return 1;  
+            
+            // Agar dono same (dono local ya dono global) hain, to date wahi rehne do
+            return 0; 
+        });
+
+        res.json(posts);
+    } catch(e) { 
+        console.error("Feed Error:", e); // Console me error dikhega debugging ke liye
+        res.status(500).json({error: "Server Error fetching posts"}); 
+    }
+});
 app.get("/api/my-posts", verifyToken, async (req, res) => { const posts = await Post.find({ userId: req.user.id }).sort({ createdAt: -1 }); res.json(posts); });
 app.delete("/api/posts/:id", verifyToken, async (req, res) => { await Post.findOneAndDelete({ _id: req.params.id, userId: req.user.id }); res.json({ message: "Deleted" }); });
 
