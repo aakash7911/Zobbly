@@ -220,7 +220,7 @@ app.get("/api/user/profile/:id", async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Error" }); }
 });
 
-app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
+/*app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
     try {
         const targetId = req.params.id; const myId = req.user.id;      
         if(targetId === myId) return res.status(400).json({error: "Cannot follow yourself"});
@@ -242,6 +242,58 @@ app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
         await targetUser.save(); await me.save();
         res.json({ status: status, followersCount: targetUser.followers.length });
     } catch(e) { res.status(500).json({error: "Error"}); }
+});*/
+// यह कोड server.js में app.put("/api/user/follow/:id"...) की जगह पेस्ट करें
+
+app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
+    try {
+        const targetId = req.params.id;
+        const myId = req.user.id;
+        
+        if(targetId === myId) return res.status(400).json({error: "Cannot follow yourself"});
+        
+        const targetUser = await User.findById(targetId);
+        const me = await User.findById(myId);
+        
+        let status = "";
+        
+        // चेक करें कि क्या पहले से फॉलो कर रहा है (ID को String में बदल कर चेक करें)
+        const isFollowing = targetUser.followers.some(id => id.toString() === myId);
+
+        if(isFollowing) {
+            // Unfollow Logic
+            targetUser.followers.pull(myId);
+            me.following.pull(targetId);
+            status = "unfollowed";
+        } else {
+            // Follow Logic
+            targetUser.followers.push(myId);
+            me.following.push(targetId);
+            status = "followed";
+            
+            // नोटिफिकेशन भेजें
+            const existingNotif = await Notification.findOne({ recipient: targetId, sender: myId, type: 'follow' });
+            if(!existingNotif) {
+                await new Notification({ 
+                    recipient: targetId, 
+                    sender: myId, 
+                    type: 'follow', 
+                    message: `started following you.`, 
+                    relatedId: myId 
+                }).save();
+            }
+        }
+        
+        await targetUser.save();
+        await me.save();
+        
+        // Frontend को नया Count और Status भेजें
+        res.json({ status: status, followersCount: targetUser.followers.length });
+        
+    } catch(e) { 
+        console.error(e);
+        res.status(500).json({error: "Error"}); 
+    }
 });
 
 app.put("/api/user/update", verifyToken, async (req, res) => { try { await User.findByIdAndUpdate(req.user.id, { name: req.body.name, headline: req.body.headline }); res.json({ message: "Updated" }); } catch(e) { res.status(500).json({error:"Error"}); } });
