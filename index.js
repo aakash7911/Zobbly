@@ -193,41 +193,80 @@ app.post("/api/send-otp", async (req, res) => {
   }
 });
 
-app.post("/api/verify-otp", async (req, res) => {
-  try { 
-      const { email, otp } = req.body; 
-      const user = await User.findOne({ email }); 
-      
-      // FIX: String() conversion added to prevent Number vs String mismatch
-      if (!user || String(user.otp) !== String(otp)) {
-          return res.status(400).json({ error: "Invalid" }); 
-      }
-      
-      res.json({ message: "Verified" }); 
-  } catch (err) { res.status(500).json({ error: "Server Error" }); }
-});
-
-app.post("/api/reset-password", async (req, res) => {
+app.post("/api/send-otp", async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
-    const user = await User.findOne({ email });
+      const { email, type } = req.body; // Frontend se 'type' bhi aana chahiye ('register' ya 'forgot')
+      
+      const user = await User.findOne({ email });
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Safety Check Added
-    if (!user) {
-        return res.status(404).json({ error: "User not found" });
-    }
+      // OTP Generate
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otp = otpCode;
+      user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 Minutes
+      await user.save();
 
-    const hash = await bcrypt.hash(newPassword, 10);
-    user.password = hash;
-    user.otp = undefined; 
-    
-    await user.save();
-    
-    res.json({ message: "Updated" });
+      // --- EMAIL CONTENT LOGIC ---
+      const logoUrl = "https://i.ibb.co/wZs0mpp2/screenshot-2025-11-25-at-10-24-21-pm-removebg-preview.png";
+      let subject = "Verification Code";
+      let heading = "Verification Code";
+      let messageText = "Please use the code below to verify your identity.";
+
+      if (type === 'register') {
+          subject = "Welcome to Zobbly! Verify your account";
+          heading = "Verify Your Account";
+          messageText = "Welcome to Zobbly! Use the OTP below to complete your registration.";
+      } else if (type === 'forgot') {
+          subject = "Reset Password Request - Zobbly";
+          heading = "Reset Your Password";
+          messageText = "We received a request to reset your password. Use the code below to proceed.";
+      }
+
+      // --- PROFESSIONAL HTML TEMPLATE ---
+      const emailHtml = `
+        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f7; padding: 40px 20px; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center;">
+                
+                <img src="${logoUrl}" alt="Zobbly Logo" style="width: 80px; margin-bottom: 20px;">
+                
+                <h2 style="color: #333333; margin-bottom: 10px; font-size: 24px; font-weight: 700;">${heading}</h2>
+                
+                <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 30px;">
+                    ${messageText}
+                </p>
+                
+                <div style="background-color: #f0fdf4; border: 1px solid #dcfce7; color: #166534; font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 15px; border-radius: 8px; display: inline-block; margin-bottom: 30px;">
+                    ${otpCode}
+                </div>
+                
+                <p style="color: #999999; font-size: 12px; margin-top: 20px;">
+                    This code is valid for 10 minutes. If you verify this request, please ignore this email.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
+                
+                <p style="color: #cccccc; font-size: 11px;">
+                    &copy; ${new Date().getFullYear()} Zobbly Network. All rights reserved.
+                </p>
+            </div>
+        </div>
+      `;
+
+      // --- SEND EMAIL via Brevo ---
+      await axios.post("https://api.brevo.com/v3/smtp/email", {
+        sender: { name: "Zobbly App", email: process.env.SENDER_EMAIL },
+        to: [{ email: email }],
+        subject: subject,
+        htmlContent: emailHtml
+      }, {
+        headers: { "accept": "application/json", "api-key": process.env.BREVO_API_KEY, "content-type": "application/json" }
+      });
+
+      res.json({ message: "OTP Sent" });
 
   } catch (err) {
-    console.error("Reset Error:", err);
-    res.status(500).json({ error: "Server Error" });
+      console.error("Email Error:", err);
+      res.status(500).json({ error: "Email failed" });
   }
 });
 // --- 1. AUTH & OTP ---
