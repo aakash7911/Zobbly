@@ -245,57 +245,34 @@ app.get("/api/user/profile/:id", async (req, res) => {
 });*/
 // यह कोड server.js में app.put("/api/user/follow/:id"...) की जगह पेस्ट करें
 
+// A. Follow/Unfollow
 app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
     try {
-        const targetId = req.params.id;
-        const myId = req.user.id;
-        
+        const targetId = req.params.id; const myId = req.user.id;      
         if(targetId === myId) return res.status(400).json({error: "Cannot follow yourself"});
-        
         const targetUser = await User.findById(targetId);
         const me = await User.findById(myId);
-        
         let status = "";
-        
-        // चेक करें कि क्या पहले से फॉलो कर रहा है (ID को String में बदल कर चेक करें)
-        const isFollowing = targetUser.followers.some(id => id.toString() === myId);
-
-        if(isFollowing) {
-            // Unfollow Logic
-            targetUser.followers.pull(myId);
-            me.following.pull(targetId);
-            status = "unfollowed";
+        if(targetUser.followers.includes(myId)) {
+            targetUser.followers.pull(myId); me.following.pull(targetId); status = "unfollowed";
         } else {
-            // Follow Logic
-            targetUser.followers.push(myId);
-            me.following.push(targetId);
-            status = "followed";
-            
-            // नोटिफिकेशन भेजें
-            const existingNotif = await Notification.findOne({ recipient: targetId, sender: myId, type: 'follow' });
-            if(!existingNotif) {
-                await new Notification({ 
-                    recipient: targetId, 
-                    sender: myId, 
-                    type: 'follow', 
-                    message: `started following you.`, 
-                    relatedId: myId 
-                }).save();
-            }
+            targetUser.followers.push(myId); me.following.push(targetId); status = "followed";
+            await new Notification({ recipient: targetId, sender: myId, type: 'follow', message: `${me.name} started following you.`, relatedId: myId }).save();
         }
-        
-        await targetUser.save();
-        await me.save();
-        
-        // Frontend को नया Count और Status भेजें
+        await targetUser.save(); await me.save();
         res.json({ status: status, followersCount: targetUser.followers.length });
-        
-    } catch(e) { 
-        console.error(e);
-        res.status(500).json({error: "Error"}); 
-    }
+    } catch(e) { res.status(500).json({error: "Error"}); }
 });
-
+app.get("/api/jobs/mantiks/company", async (req, res) => {
+    try { const options = { method: 'GET', url: 'https://jsearch.p.rapidapi.com/search', params: { query: `${req.query.name} jobs in India`, page: '1', num_pages: '1' }, headers: { 'X-RapidAPI-Key': process.env.RAPID_API_KEY, 'X-RapidAPI-Host': 'jsearch.p.rapidapi.com' } };
+    const response = await axios.request(options); res.json({ source: "JSearch", data: response.data.data }); } catch (err) { res.json({ source: "System", data: [], error: "No data found" }); }
+});
+app.get("/api/jobs/adzuna", async (req, res) => {
+    try { const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${process.env.ADZUNA_APP_ID}&app_key=${process.env.ADZUNA_APP_KEY}&results_per_page=20&what=${req.query.what}&where=${req.query.where}`; const response = await axios.get(url); res.json({ source: "Adzuna", data: response.data.results }); } catch (err) { res.status(500).json({ error: "Error" }); }
+});
+app.get("/api/jobs/jsearch", async (req, res) => {
+    try { const options = { method: 'GET', url: 'https://jsearch.p.rapidapi.com/search', params: { query: req.query.query, page: '1', num_pages: '1' }, headers: { 'X-RapidAPI-Key': process.env.RAPID_API_KEY, 'X-RapidAPI-Host': 'jsearch.p.rapidapi.com' } }; const response = await axios.request(options); res.json({ source: "JSearch", data: response.data.data }); } catch (err) { res.status(500).json({ error: "Error" }); }
+});
 app.put("/api/user/update", verifyToken, async (req, res) => { try { await User.findByIdAndUpdate(req.user.id, { name: req.body.name, headline: req.body.headline }); res.json({ message: "Updated" }); } catch(e) { res.status(500).json({error:"Error"}); } });
 app.delete("/api/user/delete", verifyToken, async (req, res) => { try { await User.findByIdAndDelete(req.user.id); await Post.deleteMany({ userId: req.user.id }); await Message.deleteMany({ $or: [{ senderId: req.user.id }, { receiverId: req.user.id }] }); res.json({ message: "Deleted" }); } catch(e) { res.status(500).json({error:"Error"}); } });
 app.get("/api/user/backup", verifyToken, async (req, res) => { try { const user = await User.findById(req.user.id); const posts = await Post.find({ userId: req.user.id }); const messages = await Message.find({ $or: [{ senderId: req.user.id }, { receiverId: req.user.id }] }); res.json({ user, posts, messages }); } catch(e) { res.status(500).json({error:"Error"}); } });
