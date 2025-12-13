@@ -273,6 +273,9 @@ app.get("/api/jobs/adzuna", async (req, res) => {
 app.get("/api/jobs/jsearch", async (req, res) => {
     try { const options = { method: 'GET', url: 'https://jsearch.p.rapidapi.com/search', params: { query: req.query.query, page: '1', num_pages: '1' }, headers: { 'X-RapidAPI-Key': process.env.RAPID_API_KEY, 'X-RapidAPI-Host': 'jsearch.p.rapidapi.com' } }; const response = await axios.request(options); res.json({ source: "JSearch", data: response.data.data }); } catch (err) { res.status(500).json({ error: "Error" }); }
 });
+app.get("/api/jobs/google", async (req, res) => {
+    try { const url = `https://serpapi.com/search.json?engine=google_jobs&q=${req.query.q}&location=${req.query.location}&api_key=${process.env.SERP_API_KEY}`; const response = await axios.get(url); res.json({ source: "Google", data: response.data.jobs_results }); } catch (err) { res.status(500).json({ error: "Error" }); }
+});
 app.put("/api/user/update", verifyToken, async (req, res) => { try { await User.findByIdAndUpdate(req.user.id, { name: req.body.name, headline: req.body.headline }); res.json({ message: "Updated" }); } catch(e) { res.status(500).json({error:"Error"}); } });
 app.delete("/api/user/delete", verifyToken, async (req, res) => { try { await User.findByIdAndDelete(req.user.id); await Post.deleteMany({ userId: req.user.id }); await Message.deleteMany({ $or: [{ senderId: req.user.id }, { receiverId: req.user.id }] }); res.json({ message: "Deleted" }); } catch(e) { res.status(500).json({error:"Error"}); } });
 app.get("/api/user/backup", verifyToken, async (req, res) => { try { const user = await User.findById(req.user.id); const posts = await Post.find({ userId: req.user.id }); const messages = await Message.find({ $or: [{ senderId: req.user.id }, { receiverId: req.user.id }] }); res.json({ user, posts, messages }); } catch(e) { res.status(500).json({error:"Error"}); } });
