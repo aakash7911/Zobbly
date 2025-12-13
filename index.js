@@ -192,6 +192,33 @@ app.post("/api/verify-otp", async (req, res) => {
 });
 
 app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    // 1. Debugging: Check karein frontend se data aa rha hai ya nahi
+    console.log("Reset Request for:", email, "NewPass:", newPassword);
+
+    const user = await User.findOne({ email });
+
+    // 2. SAFETY CHECK: Agar user nahi mila to error bhejein
+    if (!user) {
+        return res.status(404).json({ error: "User not found" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    user.password = hash;
+    user.otp = undefined; // OTP clear kar dein
+    
+    await user.save();
+    
+    res.json({ message: "Updated" });
+
+  } catch (err) {
+    console.error("Reset Password Error:", err); // Error console me print karein
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+/*app.post("/api/reset-password", async (req, res) => {
   try { const { email, newPassword } = req.body; const user = await User.findOne({ email }); const hash = await bcrypt.hash(newPassword, 10); user.password = hash; user.otp = undefined; await user.save(); res.json({ message: "Updated" }); } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
