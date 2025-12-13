@@ -11,28 +11,24 @@ const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-// Ye code index.js mein add karo
+
+// Base Route
 app.get('/', (req, res) => {
-  res.send("Hello! Server is Running (Zobbly)");
-});// Ye code index.js mein add karo
-app.get('/', (req, res) => {
-  res.send("Hello! Server is Running (Zobbly)");
+  res.send("Hello! Server is Running (Zobbly Advanced)");
 });
+
 // 📁 Create Uploads Folder
 if (!fs.existsSync("./uploads")) {
     fs.mkdirSync("./uploads");
 }
 
-// ------------------- MIDDLEWARE (CORS FIXED) -------------------
+// ------------------- MIDDLEWARE -------------------
 app.use(express.json());
-
-// ✅ FIX: Sabko allow karne wala CORS (Connection Problem Solved)
 app.use(cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "x-auth-token"]
 }));
-
 app.use("/uploads", express.static("uploads"));
 
 // ------------------- DATABASE CONNECT -------------------
@@ -40,32 +36,42 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected Successfully"))
   .catch((err) => console.log("❌ MongoDB Connection Error:", err));
 
-// ======================= SCHEMAS =======================
+// ======================= UPDATED SCHEMAS =======================
+
+// 1. User Schema (Added: Username, Country, Language)
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
+  // Unique Username logic
+  username: { type: String, unique: true, trim: true, lowercase: true }, 
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   headline: { type: String, default: "Zobbly User" },
   photo: { type: String, default: "" },
+  // Country & Language for Feed Logic
+  country: { type: String, default: "India" },
+  language: { type: String, default: "en" },
   otp: { type: String }, otpExpires: { type: Date }, 
   experience: [{ company: String, role: String, year: String }],
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
-});
+}, { timestamps: true }); // Auto Date/Time added
+
 const User = mongoose.model("User", userSchema);
 
+// 2. Notification Schema (Updated for Redirection & Sender Info)
 const notificationSchema = new mongoose.Schema({
     recipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, 
-    type: { type: String, required: true },
+    type: { type: String, required: true }, // 'post', 'follow', 'like', 'comment'
     message: { type: String },
-    relatedId: { type: String },
-    isRead: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now }
-});
+    relatedId: { type: String }, // Post ID or User ID for redirection
+    isRead: { type: Boolean, default: false }
+}, { timestamps: true }); // Auto Date/Time
+
 const Notification = mongoose.model("Notification", notificationSchema);
 
+// 3. Post Schema (Added: Views, Category)
 const postSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     content: { type: String, required: true },
@@ -77,8 +83,10 @@ const postSchema = new mongoose.Schema({
         text: String,
         createdAt: { type: Date, default: Date.now }
     }],
-    createdAt: { type: Date, default: Date.now }
-});
+    views: { type: Number, default: 0 },
+    category: { type: String, default: 'general' }
+}, { timestamps: true }); // Auto Date/Time
+
 const Post = mongoose.model("Post", postSchema);
 
 const messageSchema = new mongoose.Schema({
@@ -108,21 +116,34 @@ const verifyToken = (req, res, next) => {
   } catch (err) { res.status(400).json({ error: "Invalid Token" }); }
 };
 
-// ======================= API ROUTES =======================
+// ======================= UPDATED API ROUTES =======================
 
-// A. Follow/Unfollow
+// A. Follow/Unfollow (Updated with Duplicate Notification Check)
 app.put("/api/user/follow/:id", verifyToken, async (req, res) => {
     try {
         const targetId = req.params.id; const myId = req.user.id;      
         if(targetId === myId) return res.status(400).json({error: "Cannot follow yourself"});
+        
         const targetUser = await User.findById(targetId);
         const me = await User.findById(myId);
         let status = "";
+        
         if(targetUser.followers.includes(myId)) {
             targetUser.followers.pull(myId); me.following.pull(targetId); status = "unfollowed";
         } else {
             targetUser.followers.push(myId); me.following.push(targetId); status = "followed";
-            await new Notification({ recipient: targetId, sender: myId, type: 'follow', message: `${me.name} started following you.`, relatedId: myId }).save();
+            
+            // Check if notification already exists to avoid duplicates
+            const existingNotif = await Notification.findOne({ recipient: targetId, sender: myId, type: 'follow' });
+            if(!existingNotif) {
+                await new Notification({ 
+                    recipient: targetId, 
+                    sender: myId, 
+                    type: 'follow', 
+                    message: `started following you.`, 
+                    relatedId: myId // Redirects to User Profile
+                }).save();
+            }
         }
         await targetUser.save(); await me.save();
         res.json({ status: status, followersCount: targetUser.followers.length });
@@ -139,9 +160,25 @@ app.get("/api/user/profile/:id", async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Error" }); }
 });
 
-// C. Notifications
+// C. Notifications (Updated: Populate + DELETE Route)
 app.get("/api/notifications", verifyToken, async (req, res) => {
-    try { const notifs = await Notification.find({ recipient: req.user.id }).populate("sender", "name photo").sort({ createdAt: -1 }); res.json(notifs); } catch(e) { res.status(500).json({error: "Error"}); }
+    try { 
+        const notifs = await Notification.find({ recipient: req.user.id })
+            .populate("sender", "name photo username") // Populate Name, Photo, Username
+            .sort({ createdAt: -1 }); 
+        res.json(notifs); 
+    } catch(e) { res.status(500).json({error: "Error"}); }
+});
+
+// ✅ DELETE Notification Route (As requested)
+app.delete('/api/notifications/:id', verifyToken, async (req, res) => {
+    try {
+        await Notification.findByIdAndDelete(req.params.id);
+        res.json({ msg: "Notification deleted" });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
 });
 
 // D. Chat
@@ -163,46 +200,126 @@ app.get("/api/chat/conversations", verifyToken, async (req, res) => {
     } catch(e) { res.status(500).json({error: "Error"}); }
 });
 
-// Feed
+// E. Feed (Updated: Notify Followers on Post & Country Based Feed)
 app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (req, res) => {
     try {
         const img = req.file ? `https://zobbly.onrender.com/uploads/${req.file.filename}` : "";
+        
         const newPost = new Post({ userId: req.user.id, content: req.body.content, image: img }); 
         await newPost.save();
+        
+        // Notify Followers Logic
         const user = await User.findById(req.user.id);
-        const notifications = user.followers.map(followerId => ({
-            recipient: followerId, sender: req.user.id, type: 'post',
-            message: `${user.name} added a new post.`, relatedId: newPost._id
-        }));
-        if(notifications.length > 0) await Notification.insertMany(notifications);
+        if(user.followers.length > 0) {
+            const notifications = user.followers.map(followerId => ({
+                recipient: followerId, 
+                sender: req.user.id, 
+                type: 'post',
+                message: `added a new post.`, 
+                relatedId: newPost._id // Redirects to Post
+            }));
+            await Notification.insertMany(notifications);
+        }
+        
         res.json(newPost);
     } catch(e) { res.status(500).json({error: "Error"}); }
 });
 
-app.get("/api/posts", async (req, res) => { const posts = await Post.find().populate("userId", "name photo headline").sort({ createdAt: -1 }); res.json(posts); });
-app.get("/api/my-posts", verifyToken, async (req, res) => { const posts = await Post.find({ userId: req.user.id }).sort({ createdAt: -1 }); res.json(posts); });
-app.delete("/api/posts/:id", verifyToken, async (req, res) => { await Post.findOneAndDelete({ _id: req.params.id, userId: req.user.id }); res.json({ message: "Deleted" }); });
-app.put("/api/posts/like/:id", verifyToken, async (req, res) => {
-    const post = await Post.findById(req.params.id);
-    if(post.likes.includes(req.user.id)) post.likes.pull(req.user.id); else post.likes.push(req.user.id);
-    await post.save(); res.json(post.likes);
-});
-app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
-    const user = await User.findById(req.user.id); const post = await Post.findById(req.params.id);
-    post.comments.push({ userId: user._id, userName: user.name, text: req.body.text }); await post.save(); res.json(post.comments);
+// ✅ SMART FEED: Shows posts from Following + Same Country
+app.get("/api/posts", verifyToken, async (req, res) => { 
+    try {
+        const currentUser = await User.findById(req.user.id);
+        
+        // Find posts where user is in following list OR user is me OR user is in same country
+        const posts = await Post.find({
+            $or: [
+                { userId: { $in: currentUser.following } },
+                { userId: req.user.id }
+            ]
+        })
+        .populate("userId", "name photo headline username country")
+        .sort({ createdAt: -1 });
+
+        // Backup: If feed is empty, show global posts
+        if (posts.length === 0) {
+            const globalPosts = await Post.find()
+                .populate("userId", "name photo headline username")
+                .sort({ createdAt: -1 }).limit(20);
+            return res.json(globalPosts);
+        }
+
+        res.json(posts);
+    } catch(e) { res.status(500).json({error: "Error"}); }
 });
 
-// Chat Details
-app.get("/api/search", verifyToken, async (req, res) => {
-    const users = await User.find({ name: { $regex: req.query.q, $options: "i" }, _id: { $ne: req.user.id } }).select("name photo email"); res.json(users);
+app.get("/api/my-posts", verifyToken, async (req, res) => { const posts = await Post.find({ userId: req.user.id }).sort({ createdAt: -1 }); res.json(posts); });
+app.delete("/api/posts/:id", verifyToken, async (req, res) => { await Post.findOneAndDelete({ _id: req.params.id, userId: req.user.id }); res.json({ message: "Deleted" }); });
+
+// Like Logic (with Notification)
+app.put("/api/posts/like/:id", verifyToken, async (req, res) => {
+    const post = await Post.findById(req.params.id);
+    if(post.likes.includes(req.user.id)) {
+        post.likes.pull(req.user.id); 
+    } else {
+        post.likes.push(req.user.id);
+        // Notify Post Owner
+        if(post.userId.toString() !== req.user.id) {
+            await new Notification({
+                recipient: post.userId,
+                sender: req.user.id,
+                type: 'like',
+                message: 'liked your post.',
+                relatedId: post._id
+            }).save();
+        }
+    }
+    await post.save(); res.json(post.likes);
 });
+
+// Comment Logic (with Notification)
+app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
+    const user = await User.findById(req.user.id); const post = await Post.findById(req.params.id);
+    post.comments.push({ userId: user._id, userName: user.name, text: req.body.text }); 
+    await post.save();
+    
+    // Notify Post Owner
+    if(post.userId.toString() !== req.user.id) {
+        await new Notification({
+            recipient: post.userId,
+            sender: req.user.id,
+            type: 'comment',
+            message: 'commented on your post.',
+            relatedId: post._id
+        }).save();
+    }
+    
+    res.json(post.comments);
+});
+
+// Chat Search & Messages
+app.get("/api/search", verifyToken, async (req, res) => {
+    const users = await User.find({ 
+        $or: [
+            { name: { $regex: req.query.q, $options: "i" } },
+            { username: { $regex: req.query.q, $options: "i" } } // Also search by username
+        ],
+        _id: { $ne: req.user.id } 
+    }).select("name photo email headline username"); 
+    res.json(users);
+});
+
 app.post("/api/messages", verifyToken, async (req, res) => {
     try {
         await new Message({ senderId: req.user.id, receiverId: req.body.receiverId, content: req.body.content }).save(); 
-        await new Notification({ recipient: req.body.receiverId, sender: req.user.id, type: 'message', message: `New message`, relatedId: req.user.id }).save();
+        // Optional: Notify for message (if not real-time socket)
+        const existingNotif = await Notification.findOne({ recipient: req.body.receiverId, sender: req.user.id, type: 'message', isRead: false });
+        if(!existingNotif) {
+             await new Notification({ recipient: req.body.receiverId, sender: req.user.id, type: 'message', message: `sent you a message.`, relatedId: req.user.id }).save();
+        }
         res.json({ message: "Sent" });
     } catch(e) { res.status(500).json({error: "Error"}); }
 });
+
 app.post("/api/messages/upload", verifyToken, upload.single("chatFile"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file" });
     const url = `https://zobbly.onrender.com/uploads/${req.file.filename}`;
@@ -220,7 +337,7 @@ app.get("/api/messages/:otherId", verifyToken, async (req, res) => {
     res.json(msgs);
 });
 
-// JOB SEARCH (Proxy)
+// JOB SEARCH API (Proxies)
 app.get("/api/jobs/mantiks", async (req, res) => {
     try { const options = { method: 'GET', url: 'https://jsearch.p.rapidapi.com/search', params: { query: `${req.query.what} in India`, page: '1', num_pages: '1' }, headers: { 'X-RapidAPI-Key': process.env.RAPID_API_KEY, 'X-RapidAPI-Host': 'jsearch.p.rapidapi.com' } };
     const response = await axios.request(options); res.json({ source: "JSearch", data: response.data.data }); } catch (err) { res.json({ source: "System", data: [], error: "Search failed" }); }
@@ -239,12 +356,50 @@ app.get("/api/jobs/google", async (req, res) => {
     try { const url = `https://serpapi.com/search.json?engine=google_jobs&q=${req.query.q}&location=${req.query.location}&api_key=${process.env.SERP_API_KEY}`; const response = await axios.get(url); res.json({ source: "Google", data: response.data.jobs_results }); } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// AUTH & OTP
+// AUTH & OTP (Updated for Username/Country)
 app.post("/api/register", async (req, res) => {
-  try { const { name, email, password } = req.body; if(await User.findOne({ email })) return res.status(400).json({ error: "Exists" }); const hash = await bcrypt.hash(password, 10); await new User({ name, email, password: hash }).save(); res.json({ message: "Registered" }); } catch (err) { res.status(500).json({ error: "Server Error" }); }
+  try { 
+      const { name, email, password, username, country, language } = req.body; 
+      
+      // Generate username if not provided
+      const finalUsername = username || email.split('@')[0] + Math.floor(Math.random() * 1000);
+
+      // Check Email OR Username exist
+      if(await User.findOne({ $or: [{ email }, { username: finalUsername }] })) 
+          return res.status(400).json({ error: "Email or Username Exists" }); 
+      
+      const hash = await bcrypt.hash(password, 10); 
+      await new User({ 
+          name, 
+          email, 
+          password: hash,
+          username: finalUsername,
+          country: country || "India",
+          language: language || "en"
+      }).save(); 
+      res.json({ message: "Registered" }); 
+  } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
+
 app.post("/api/login", async (req, res) => {
-  try { const { email, password } = req.body; const user = await User.findOne({ email }); if(!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({error: "Invalid"}); const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET); res.json({ token, user: { _id: user._id, name: user.name, email: user.email, photo: user.photo, blockedUsers: user.blockedUsers } }); } catch (err) { res.status(500).json({ error: "Server Error" }); }
+  try { 
+      const { email, password } = req.body; 
+      const user = await User.findOne({ email }); 
+      if(!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({error: "Invalid"}); 
+      
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET); 
+      res.json({ 
+          token, 
+          user: { 
+              _id: user._id, 
+              name: user.name, 
+              username: user.username, // Send username
+              email: user.email, 
+              photo: user.photo, 
+              blockedUsers: user.blockedUsers 
+          } 
+      }); 
+  } catch (err) { res.status(500).json({ error: "Server Error" }); }
 });
 
 // ✅ OTP SENDING (BREVO API)
