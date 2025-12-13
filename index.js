@@ -197,10 +197,24 @@ app.post("/api/reset-password", async (req, res) => {
 
 // --- 2. USER PROFILE & ACTIONS ---
 
-app.get("/api/user/profile/:id", async (req, res) => {
+/*app.get("/api/user/profile/:id", async (req, res) => {
     try {
         const user = await User.findById(req.params.id).select("-password -otp");
         const posts = await Post.find({ userId: req.params.id }).sort({ createdAt: -1 });
+        if (!user) return res.status(404).json({ error: "User not found" });
+        res.json({ user, posts });
+    } catch (e) { res.status(500).json({ error: "Error" }); }
+});*/
+// ✅ PROFILE POSTS (Updated: Comments photo fix)
+app.get("/api/user/profile/:id", async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select("-password -otp");
+        const posts = await Post.find({ userId: req.params.id })
+            .populate("userId", "name photo headline username country")
+            // 👇 YE LINE ADD KARO 👇
+            .populate("comments.userId", "name photo username")
+            .sort({ createdAt: -1 });
+            
         if (!user) return res.status(404).json({ error: "User not found" });
         res.json({ user, posts });
     } catch (e) { res.status(500).json({ error: "Error" }); }
@@ -321,7 +335,7 @@ app.post("/api/posts/create", verifyToken, upload.single("postImage"), async (re
 });
 
 // ✅ SMART FEED: Shows posts from User's Country FIRST + HIDES Blocked Users
-app.get("/api/posts", verifyToken, async (req, res) => { 
+/*app.get("/api/posts", verifyToken, async (req, res) => { 
     try {
         const currentUser = await User.findById(req.user.id);
         if(!currentUser) return res.status(404).json({error: "User not found"});
@@ -350,6 +364,35 @@ app.get("/api/posts", verifyToken, async (req, res) => {
         console.error(e);
         res.status(500).json({error: "Error"}); 
     }
+});*/
+// ✅ SMART FEED (Updated: Comments me photo dikhane ke liye populate kiya)
+app.get("/api/posts", verifyToken, async (req, res) => { 
+    try {
+        const currentUser = await User.findById(req.user.id);
+        if(!currentUser) return res.status(404).json({error: "User not found"});
+
+        const myCountry = currentUser.country || "India"; 
+        const blockedList = currentUser.blockedUsers || [];
+
+        // Fetch posts EXCLUDING blocked users
+        let posts = await Post.find({ userId: { $nin: blockedList } })
+            .populate("userId", "name photo headline username country")
+            // 👇 YE LINE ZAROORI HAI PHOTO KE LIYE 👇
+            .populate("comments.userId", "name photo username") 
+            .sort({ createdAt: -1 }); 
+
+        // Sort: Local Country -> Global
+        posts.sort((a, b) => {
+            if (!a.userId || !b.userId) return 0;
+            const aIsLocal = a.userId.country === myCountry;
+            const bIsLocal = b.userId.country === myCountry;
+            if (aIsLocal && !bIsLocal) return -1; 
+            if (!aIsLocal && bIsLocal) return 1;  
+            return 0; 
+        });
+
+        res.json(posts);
+    } catch(e) { console.error(e); res.status(500).json({error: "Error"}); }
 });
 
 app.get("/api/my-posts", verifyToken, async (req, res) => { const posts = await Post.find({ userId: req.user.id }).sort({ createdAt: -1 }); res.json(posts); });
@@ -368,13 +411,40 @@ app.put("/api/posts/like/:id", verifyToken, async (req, res) => {
     await post.save(); res.json(post.likes);
 });
 
-app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
+/*app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
     const user = await User.findById(req.user.id); const post = await Post.findById(req.params.id);
     post.comments.push({ userId: user._id, userName: user.name, text: req.body.text }); await post.save();
     if(post.userId.toString() !== req.user.id) {
         await new Notification({ recipient: post.userId, sender: req.user.id, type: 'comment', message: 'commented on your post.', relatedId: post._id }).save();
     }
     res.json(post.comments);
+});*/
+
+// ✅ COMMENT API (Updated: Comment karte hi photo load hogi)
+app.post("/api/posts/comment/:id", verifyToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id); 
+        const post = await Post.findById(req.params.id);
+        
+        // Comment save karo
+        post.comments.push({ userId: user._id, userName: user.name, text: req.body.text }); 
+        await post.save();
+        
+        // 👇 TURANT POPULATE KARO TAAKI PHOTO DIKHE 👇
+        await post.populate("comments.userId", "name photo username");
+
+        // Notification logic
+        if(post.userId.toString() !== req.user.id) {
+            await new Notification({ 
+                recipient: post.userId, 
+                sender: req.user.id, 
+                type: 'comment', 
+                message: 'commented on your post.', 
+                relatedId: post._id 
+            }).save();
+        }
+        res.json(post.comments);
+    } catch (e) { res.status(500).json({ error: "Error adding comment" }); }
 });
 
 // --- 5. NOTIFICATIONS ---
