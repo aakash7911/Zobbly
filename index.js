@@ -121,9 +121,117 @@ const verifyToken = (req, res, next) => {
 };
 
 // ======================= API ROUTES =======================
-
-// --- 1. AUTH & OTP ---
 app.post("/api/register", async (req, res) => {
+  try { 
+      const { name, email, password, username, country, language } = req.body; 
+      
+      const finalUsername = username || email.split('@')[0] + Math.floor(Math.random() * 1000);
+
+      if(await User.findOne({ $or: [{ email }, { username: finalUsername }] })) 
+          return res.status(400).json({ error: "Email or Username Exists" }); 
+      
+      const hash = await bcrypt.hash(password, 10); 
+      await new User({ 
+          name, email, password: hash, 
+          username: finalUsername, 
+          country: country || "India", 
+          language: language || "en" 
+      }).save(); 
+      res.json({ message: "Registered" }); 
+  } catch (err) { res.status(500).json({ error: "Server Error" }); }
+});
+
+app.post("/api/login", async (req, res) => {
+  try { 
+      const { email, password } = req.body; 
+      const user = await User.findOne({ email }); 
+      if(!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({error: "Invalid"}); 
+      
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET); 
+      res.json({ 
+          token, 
+          user: { 
+              _id: user._id, 
+              name: user.name, 
+              username: user.username, 
+              email: user.email, 
+              photo: user.photo, 
+              country: user.country,
+              blockedUsers: user.blockedUsers 
+          } 
+      }); 
+  } catch (err) { res.status(500).json({ error: "Server Error" }); }
+});
+
+app.post("/api/send-otp", async (req, res) => {
+  try { 
+      const { email } = req.body; 
+      const user = await User.findOne({ email }); 
+      
+      // Check if user exists
+      if (!user) return res.status(404).json({ error: "User not found" }); 
+
+      // Convert OTP to String explicitely
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); 
+      
+      user.otp = otpCode; 
+      user.otpExpires = Date.now() + 10 * 60 * 1000; 
+      await user.save(); 
+
+      await axios.post("https://api.brevo.com/v3/smtp/email", {
+        sender: { name: "Zobbly App", email: process.env.SENDER_EMAIL },
+        to: [{ email: email }],
+        subject: "Verification Code",
+        htmlContent: `<p>Your OTP code is: <b>${otpCode}</b></p>`
+      }, {
+        headers: { "accept": "application/json", "api-key": process.env.BREVO_API_KEY, "content-type": "application/json" }
+      });
+      res.json({ message: "OTP Sent" }); 
+  } catch (err) { 
+      console.error(err);
+      res.status(500).json({ error: "Email failed" }); 
+  }
+});
+
+app.post("/api/verify-otp", async (req, res) => {
+  try { 
+      const { email, otp } = req.body; 
+      const user = await User.findOne({ email }); 
+      
+      // FIX: String() conversion added to prevent Number vs String mismatch
+      if (!user || String(user.otp) !== String(otp)) {
+          return res.status(400).json({ error: "Invalid" }); 
+      }
+      
+      res.json({ message: "Verified" }); 
+  } catch (err) { res.status(500).json({ error: "Server Error" }); }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    const user = await User.findOne({ email });
+
+    // Safety Check Added
+    if (!user) {
+        return res.status(404).json({ error: "User not found" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    user.password = hash;
+    user.otp = undefined; 
+    
+    await user.save();
+    
+    res.json({ message: "Updated" });
+
+  } catch (err) {
+    console.error("Reset Error:", err);
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+// --- 1. AUTH & OTP ---
+/*app.post("/api/register", async (req, res) => {
   try { 
       const { name, email, password, username, country, language } = req.body; 
       
